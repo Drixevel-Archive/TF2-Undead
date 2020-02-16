@@ -23,7 +23,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] Undead Zombies"
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
-#define PLUGIN_VERSION "1.0.1"
+#define PLUGIN_VERSION "1.0.2"
 
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
@@ -33,6 +33,8 @@
 
 #define LOBBY_TIME 20
 #define MAX_ZOMBIES 25
+#define ZOMBIE_HIT_DISTANCE 75.0
+#define ZOMBIE_FACE_DISTANCE 300.0
 
 /*****************************/
 //Includes
@@ -1351,7 +1353,7 @@ public Action Timer_ZombieTicks(Handle timer)
 		if (g_Match.pausezombies)
 		{
 			g_ZombiesData[zombie.Index].pPath.ComputeToTarget(bot, entity);
-			g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(450.0);
+			g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 		}
 		else
 		{
@@ -1363,12 +1365,12 @@ public Action Timer_ZombieTicks(Handle timer)
 			if (g_ZombiesData[zombie.Index].g_Target != -1)
 			{
 				g_ZombiesData[zombie.Index].pPath.ComputeToTarget(bot, g_ZombiesData[zombie.Index].g_Target);
-				g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(450.0);
+				g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 			}
 			else
 			{
 				g_ZombiesData[zombie.Index].pPath.ComputeToTarget(bot, entity);
-				g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(450.0);
+				g_ZombiesData[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 			}
 		}
 	}
@@ -1430,7 +1432,7 @@ public void Hook_NPCThink(int entity)
 	float vecTargetPos[3];
 	GetClientAbsOrigin(iBestTarget, vecTargetPos);
 	
-	if (GetVectorDistance(vecNPCPos, vecTargetPos) > 50.0)
+	if (GetVectorDistance(vecNPCPos, vecTargetPos) > ZOMBIE_HIT_DISTANCE)
 	{
 		g_ZombiesData[zombie.Index].pPath.Update(bot);
 	}
