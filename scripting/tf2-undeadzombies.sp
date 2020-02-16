@@ -23,7 +23,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] Undead Zombies"
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.0.1"
 
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
@@ -1441,8 +1441,7 @@ public void Hook_NPCThink(int entity)
 		
 		SDKHooks_TakeDamage(iBestTarget, entity, entity, GetRandomFloat(2.0, 8.0), DMG_SLASH);
 		SpeakResponseConcept(iBestTarget, "TLK_PLAYER_PAIN");
-		//PrintToChat(iBestTarget, "best target");
-
+		
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", iBestTarget);
 
 		StopTimer(g_RegenTimer[iBestTarget]);
@@ -3351,10 +3350,21 @@ void OnSentryTick(int entity)
 //Misc
 void KillAllZombies()
 {
-	int entity = -1;
+	int entity = -1; CBaseNPC zombie;
 	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
-		if (TheNPCs.FindNPCByEntIndex(entity) != INVALID_NPC)
-			SDKHooks_TakeDamage(entity, 0, 0, 99999.0);
+		if ((zombie = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC)
+		{
+			float vecOrigin[3];
+			GetEntityOrigin(entity, vecOrigin);
+
+			float vecAngles[3];
+			GetEntityAngles(entity, vecAngles);
+				
+			TF2_CreateRagdoll(vecOrigin, vecAngles, g_ZombiesData[zombie].g_Class, zombie.iTeamNum, zombie.nSkin, 2.0, RAG_BECOMEASH);
+			
+			zombie.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+			AcceptEntityInput(entity, "Kill");
+		}
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
