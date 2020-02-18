@@ -23,7 +23,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] Undead Zombies"
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
-#define PLUGIN_VERSION "1.0.2"
+#define PLUGIN_VERSION "1.0.3"
 
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
@@ -1433,9 +1433,7 @@ public void Hook_NPCThink(int entity)
 	GetClientAbsOrigin(iBestTarget, vecTargetPos);
 	
 	if (GetVectorDistance(vecNPCPos, vecTargetPos) > ZOMBIE_HIT_DISTANCE)
-	{
 		g_ZombiesData[zombie.Index].pPath.Update(bot);
-	}
 	else if (g_ZombiesData[zombie.Index].g_flLastAttackTime <= GetGameTime())
 	{
 		g_ZombiesData[zombie.Index].g_flLastAttackTime = GetGameTime() + 0.5;
@@ -2225,19 +2223,12 @@ void OnMachineTick(int entity)
 	int unlock = g_Machines[entity].unlock;
 	int index = g_Machines[entity].index;
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	float fOrigin2[3];
-
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != 3)
 			continue;
 		
-		GetEntPropVector(i, Prop_Send, "m_vecOrigin", fOrigin2);
-
-		if (IsVisibleTo(i, entity, 120.0, true))
+		if (IsVisibleTo(i, entity, 200.0, true, 75.0))
 		{
 			if (unlock <= g_Match.round)
 			{
@@ -2603,11 +2594,6 @@ void OnWeaponTick(int entity)
 	TF2Items_GetWeaponKeyString(g_CustomWeapons[index].name, "classes", sClasses, sizeof(sClasses));
 	sClasses[0] = CharToUpper(sClasses[0]);
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	float fOrigin2[3];
-
 	char sRepurchase[16];
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -2615,8 +2601,7 @@ void OnWeaponTick(int entity)
 			continue;
 		
 		sRepurchase[0] = '\0';
-		GetEntPropVector(i, Prop_Send, "m_vecOrigin", fOrigin2);
-		
+
 		if (IsVisibleTo(i, entity, 90.0, true))
 		{
 			if (unlock <= g_Match.round)
@@ -2890,18 +2875,11 @@ void OnSecretBoxTick(int entity)
 {
 	int unlock = g_SecretBox[entity].unlock;
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	float fOrigin2[3];
-	
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != 3)
 			continue;
-		
-		GetEntPropVector(i, Prop_Send, "m_vecOrigin", fOrigin2);
-		
+				
 		if (IsVisibleTo(i, entity, 120.0, true))
 		{
 			if (unlock <= g_Match.round)
@@ -3157,10 +3135,9 @@ void SetPlankStatus(int entity)
 	SetEntProp(entity, Prop_Data, "m_iHealth", 500);
 	SetEntProp(entity, Prop_Data, "m_iDisabled", 0);
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	TE_Particle("rps_win_sparks", fOrigin1);
+	float fOrigin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
+	TE_Particle("rps_win_sparks", fOrigin);
 
 	AcceptEntityInput(entity, "Enable");
 	g_RebuildDelay[entity] = -1.0;
@@ -3181,19 +3158,12 @@ void OnPlankTick(int entity)
 	int health = GetEntProp(entity, Prop_Data, "m_iHealth");
 	bool disabled = GetEntProp(entity, Prop_Data, "m_iDisabled") == 1;
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	float fOrigin2[3];
-
 	char sCooldown[32]; float diff;
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i))
 			continue;
 		
-		GetEntPropVector(i, Prop_Send, "m_vecOrigin", fOrigin2);
-
 		switch (GetClientTeam(i))
 		{
 			case 2:
@@ -3243,6 +3213,9 @@ void OnPlankTick(int entity)
 	if (disabled)
 		return;
 	
+	float fOrigin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
+	
 	int zombie = -1;
 	while ((zombie = FindEntityByClassname(zombie, "base_boss")) != -1)
 	{
@@ -3258,7 +3231,7 @@ void OnPlankTick(int entity)
 			AcceptEntityInput(entity, "Disable");
 
 			EmitGameSoundToAll("Breakable.Crate", entity);
-			TE_Particle("mvm_loot_dustup", fOrigin1);
+			TE_Particle("mvm_loot_dustup", fOrigin);
 
 			g_RebuildDelay[entity] = GetGameTime() + 30.0;
 			continue;
@@ -3272,7 +3245,7 @@ void OnPlankTick(int entity)
 			animationEntity.AddGestureSequence(iSequence);
 
 			EmitGameSoundToAll("Breakable.Crate", entity);
-			TE_Particle("mvm_loot_smoke", fOrigin1);
+			TE_Particle("mvm_loot_smoke", fOrigin);
 
 			g_BreakingSounds[zombie] = time + 1;
 		}
@@ -3314,17 +3287,13 @@ void OnSentryTick(int entity)
 		g_DisableBuilding[entity] = -1;
 	}
 
-	float fOrigin1[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin1);
-
-	float fOrigin2[3];
+	float fOrigin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != 3)
 			continue;
-		
-		GetEntPropVector(i, Prop_Send, "m_vecOrigin", fOrigin2);
 		
 		if (IsVisibleTo(i, entity, 120.0, true))
 		{
@@ -3591,10 +3560,11 @@ public void TF2_OnRegeneratePlayerPost(int client)
 	StripPlayer(client);
 }
 
-#define TRACE_TOLERANCE 75.0
-
-bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePosition = false)
+bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePosition = false, float tolerance = 75.0)
 {
+	if (client < 1 || client > MaxClients || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(entity))
+		return false;
+	
 	if (maxdistance > 0.0 && GetEntitiesDistance(client, entity) > maxdistance)
 		return false;
 	
@@ -3610,15 +3580,15 @@ bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePo
 	float vAngles[3];
 	GetVectorAngles(vLookAt, vAngles);
 	
-	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceFilter);
+	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceFilter, entity);
 	
-	bool isVisible;
+	bool isVisible = true;
 	if (TR_DidHit(trace))
 	{
 		float vStart[3];
 		TR_GetEndPosition(vStart, trace);
 		
-		if ((GetVectorDistance(vOrigin, vStart, false) + TRACE_TOLERANCE) >= GetVectorDistance(vOrigin, vEnt))
+		if ((GetVectorDistance(vOrigin, vStart, false) + tolerance) >= GetVectorDistance(vOrigin, vEnt))
 			isVisible = true;
 	}
 	else
@@ -3628,13 +3598,10 @@ bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePo
 	return isVisible;
 }
 
-public bool TraceFilter(int entity, int contentsMask)
+public bool TraceFilter(int entity, int contentsMask, any data)
 {
-	if (entity <= MaxClients || !IsValidEntity(entity))
+	if (entity <= MaxClients || !IsValidEntity(entity) || entity == data)
 		return false;
 	
-	char class[128];
-	GetEdictClassname(entity, class, sizeof(class));
-	
-	return !StrEqual(class, "prop_physics", false);
+	return true;
 }
