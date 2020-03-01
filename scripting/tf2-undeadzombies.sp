@@ -23,7 +23,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] Undead Zombies"
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
-#define PLUGIN_VERSION "1.0.3"
+#define PLUGIN_VERSION "1.0.4"
 
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
@@ -33,8 +33,12 @@
 
 #define LOBBY_TIME 20
 #define MAX_ZOMBIES 25
+
 #define ZOMBIE_HIT_DISTANCE 75.0
 #define ZOMBIE_FACE_DISTANCE 300.0
+
+#define ZOMBIE_MIN_DAMAGE 2.0
+#define ZOMBIE_MAX_DAMAGE 8.0
 
 /*****************************/
 //Includes
@@ -1439,7 +1443,7 @@ public void Hook_NPCThink(int entity)
 		g_ZombiesData[zombie.Index].g_flLastAttackTime = GetGameTime() + 0.5;
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("Melee_Swing"));
 		
-		SDKHooks_TakeDamage(iBestTarget, entity, entity, GetRandomFloat(2.0, 8.0), DMG_SLASH);
+		SDKHooks_TakeDamage(iBestTarget, entity, entity, GetRandomFloat(ZOMBIE_MIN_DAMAGE, ZOMBIE_MAX_DAMAGE), DMG_SLASH);
 		SpeakResponseConcept(iBestTarget, "TLK_PLAYER_PAIN");
 		
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", iBestTarget);
