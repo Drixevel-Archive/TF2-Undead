@@ -35,13 +35,19 @@
 #define TEAM_SURVIVORS 3
 
 #define MAX_DIFFICULTIES 12
-#define LOBBY_TIME 20
+#define LOBBY_TIME 60
 
 #define ZOMBIE_HIT_DISTANCE 75.0
 #define ZOMBIE_FACE_DISTANCE 250.0
 
 #define ZOMBIE_MIN_DAMAGE 2.0
 #define ZOMBIE_MAX_DAMAGE 8.0
+
+#define INTERACT_SUCCESS 0
+#define INTERACT_INSUFFICIENTFUNDS 1
+#define INTERACT_MAXREACHED 2
+
+#define SOUND_LOBBY "ui/quest_haunted_scroll_halloween.mp3"
 
 /*****************************/
 //Includes
@@ -243,7 +249,9 @@ enum struct Players
 	int zombiekills;
 
 	bool zombie;
-	float zombie_sounds;
+	float sounds;
+	int type;
+	bool insidemap;
 
 	int revivemarker;
 	int glow;
@@ -251,6 +259,9 @@ enum struct Players
 
 	int interact;
 	float delayhint;
+
+	bool forceattack;
+	int target_plank;
 
 	//interactables
 	int nearinteractable;
@@ -272,6 +283,8 @@ enum struct Players
 	int secondary;
 	int melee;
 
+	Handle punchanim;
+
 	void Init(int client)
 	{
 		this.client = client;
@@ -281,7 +294,9 @@ enum struct Players
 		this.zombiekills = 0;
 
 		this.zombie = false;
-		this.zombie_sounds = -1.0;
+		this.sounds = -1.0;
+		this.type = GetZombieTypeByName("Common");
+		this.insidemap = false;
 
 		this.revivemarker = INVALID_ENT_REFERENCE;
 		this.glow = INVALID_ENT_REFERENCE;
@@ -289,6 +304,9 @@ enum struct Players
 
 		this.interact = -1;
 		this.delayhint = -1.0;
+
+		this.forceattack = false;
+		this.target_plank = -1;
 
 		this.nearinteractable = -1;
 		this.nearmachine = -1;
@@ -306,6 +324,8 @@ enum struct Players
 		this.primary = -1;
 		this.secondary = -1;
 		this.melee = -1;
+
+		StopTimer(this.punchanim);
 	}
 
 	void Reset()
@@ -315,7 +335,9 @@ enum struct Players
 		this.zombiekills = 0;
 
 		this.zombie = false;
-		this.zombie_sounds = -1.0;
+		this.sounds = -1.0;
+		this.type = GetZombieTypeByName("Common");
+		this.insidemap = false;
 
 		this.interact = -1;
 		this.delayhint = -1.0;
@@ -336,6 +358,8 @@ enum struct Players
 		this.primary = -1;
 		this.secondary = -1;
 		this.melee = -1;
+
+		StopTimer(this.punchanim);
 	}
 
 	void Clear()
@@ -347,7 +371,9 @@ enum struct Players
 		this.zombiekills = 0;
 
 		this.zombie = false;
-		this.zombie_sounds = -1.0;
+		this.sounds = -1.0;
+		this.type = GetZombieTypeByName("Common");
+		this.insidemap = false;
 
 		this.revivemarker = INVALID_ENT_REFERENCE;
 		this.glow = INVALID_ENT_REFERENCE;
@@ -371,6 +397,8 @@ enum struct Players
 		this.primary = -1;
 		this.secondary = -1;
 		this.melee = -1;
+
+		StopTimer(this.punchanim);
 	}
 
 	void SetPoints(int value)
@@ -380,9 +408,7 @@ enum struct Players
 
 	void AddPoints(int value)
 	{
-		this.points += value;
-
-		this.points = RoundFloat(float(this.points) * g_Difficulty[g_Match.difficulty].points_multiplier);
+		this.points += RoundFloat(float(value) * g_Difficulty[g_Match.difficulty].points_multiplier);
 
 		if (this.points > 100000)
 			this.points = 100000;
@@ -399,16 +425,34 @@ enum struct Players
 	
 	void AddPerk(const char[] name)
 	{
-		if (this.perks.FindString(name) == -1)
-		{
-			this.perks.PushString(name);
-			this.ApplyPerks();
-		}
+		this.perks.PushString(name);
+		this.ApplyPerk(name);
 	}
 
 	bool HasPerk(const char[] name)
 	{
-		return this.perks.FindString(name) != -1;
+		int max = GetMachineMax(name);
+
+		if (max > 0 && this.GetPerkCount(name) >= max)
+			return true;
+		
+		return false;
+	}
+
+	int GetPerkCount(const char[] name)
+	{
+		int count;
+
+		char sName[64];
+		for (int i = 0; i < this.perks.Length; i++)
+		{
+			this.perks.GetString(i, sName, sizeof(sName));
+
+			if (StrEqual(sName, name, false))
+				count++;
+		}
+
+		return count;
 	}
 
 	void ApplyPerks()
@@ -420,59 +464,76 @@ enum struct Players
 		for (int i = 0; i < this.perks.Length; i++)
 		{
 			this.perks.GetString(i, sPerk, sizeof(sPerk));
+			this.ApplyPerk(sPerk);
+		}
+	}
 
-			if (StrEqual(sPerk, "speedcola", false))
-			{
-				TF2Attrib_SetByName(this.client, "Reload time decreased", 0.70);
-				TF2Attrib_SetByName(this.client, "deploy time decreased", 0.70);
-			}
-			else if (StrEqual(sPerk, "juggernog", false))
-			{
-				SetEntityHealth(this.client, 300);
-			}
-			else if (StrEqual(sPerk, "packapunch", false))
-			{
-				int weapon = GetActiveWeapon(this.client);
+	void ApplyPerk(const char[] name)
+	{
+		if (!IsClientInGame(this.client) || !IsPlayerAlive(this.client))
+			return;
 
-				if (IsValidEntity(weapon))
-				{
-					TF2Attrib_SetByName(weapon, "damage bonus", 1.30);
-					TF2Attrib_SetFireRateBonus(weapon, 0.30);
-					TF2Attrib_SetByName(weapon, "Reload time decreased", 0.70);
-					TF2Attrib_SetByDefIndex(weapon, 134, g_SpawnedWeapons[weapon].particle);
-				}
-			}
-			else if (StrEqual(sPerk, "staminup", false))
-			{
-				TF2Attrib_SetByName(this.client, "move speed bonus", 1.70);
-				TF2_AddCondition(this.client, TFCond_SpeedBuffAlly, 0.0);
-			}
-			else if (StrEqual(sPerk, "deadshot", false))
-			{
-				for (int x = 0; x < 5; x++)
-				{
-					int weapon = GetPlayerWeaponSlot(this.client, x);
+		if (StrEqual(name, "speedcola", false))
+		{
+			TF2Attrib_SetByName(this.client, "Reload time decreased", 0.70);
+			TF2Attrib_SetByName(this.client, "deploy time decreased", 0.70);
+		}
+		else if (StrEqual(name, "juggernog", false))
+		{
+			SetEntityHealth(this.client, 300);
+		}
+		else if (StrEqual(name, "packapunch", false))
+		{
+			int weapon = GetActiveWeapon(this.client);
 
-					if (IsValidEntity(weapon))
-					{
-						TF2Attrib_SetByName(weapon, "projectile penetration", 1.0);
-						TF2Attrib_SetByName(weapon, "energy weapon penetration", 1.0);
-						TF2Attrib_SetByName(weapon, "projectile penetration heavy", 1.0);
-					}
-				}
-			}
-			else if (StrEqual(sPerk, "doubletap", false))
+			if (IsValidEntity(weapon))
 			{
-				for (int x = 0; x < 5; x++)
-				{
-					int weapon = GetPlayerWeaponSlot(this.client, x);
+				Address attr;
+				if ((attr = TF2Attrib_GetByName(weapon, "damage bonus")) != Address_Null)
+					TF2Attrib_SetByName(weapon, "damage bonus", TF2Attrib_GetValue(attr) + 0.15);
+				else
+					TF2Attrib_SetByName(weapon, "damage bonus", 1.15);
+				
+				TF2Attrib_SetFireRateBonus(weapon, 0.07);
 
-					if (IsValidEntity(weapon))
-					{
-						TF2Attrib_SetFireRateBonus(weapon, 0.30);
-						TF2Attrib_SetByName(weapon, "bullets per shot bonus", 2.0);
-					}
-				}
+				if ((attr = TF2Attrib_GetByName(weapon, "Reload time decreased")) != Address_Null)
+					TF2Attrib_SetByName(weapon, "Reload time decreased", TF2Attrib_GetValue(attr) - 0.15);
+				else
+					TF2Attrib_SetByName(weapon, "Reload time decreased", 0.85);
+				
+				TF2Attrib_SetByDefIndex(weapon, 134, g_SpawnedWeapons[weapon].particle);
+			}
+
+			ActivateAnimation(this.client, "packapunch", weapon);
+		}
+		else if (StrEqual(name, "staminup", false))
+		{
+			TF2Attrib_SetByName(this.client, "move speed bonus", 1.70);
+			TF2_AddCondition(this.client, TFCond_SpeedBuffAlly, 1.0);
+		}
+		else if (StrEqual(name, "deadshot", false))
+		{
+			int weapon = -1;
+			for (int x = 0; x < 5; x++)
+			{
+				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
+					continue;
+				
+				TF2Attrib_SetByName(weapon, "projectile penetration", 1.0);
+				TF2Attrib_SetByName(weapon, "energy weapon penetration", 1.0);
+				TF2Attrib_SetByName(weapon, "projectile penetration heavy", 1.0);
+			}
+		}
+		else if (StrEqual(name, "doubletap", false))
+		{
+			int weapon = -1;
+			for (int x = 0; x < 5; x++)
+			{
+				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
+					continue;
+				
+				TF2Attrib_SetFireRateBonus(weapon, 0.03);
+				TF2Attrib_SetByName(weapon, "bullets per shot bonus", 2.0);
 			}
 		}
 	}
@@ -490,25 +551,29 @@ Handle g_RegenTimer[MAXPLAYERS + 1];
 enum struct Zombies
 {
 	int entity;
+	int class;
 	int type;
-	PathFollower pPath;
+	float speed;
+	ChasePath pPath;
 	float g_flLastAttackTime;
 	int g_Class;
-	int g_Target;
-	float g_TargetTicks;
-	float g_ZombieSounds;
-	bool spawnpowerups;
+	int target;
+	float targetTicks;
+	float sounds;
+	bool insidemap;
 
 	void Reset()
 	{
 		this.entity = -1;
+		this.class = -1;
 		this.type = GetZombieTypeByName("Common");
+		this.speed = 0.0;
 		this.g_flLastAttackTime = -1.0;
 		this.g_Class = 0;
-		this.g_Target = 0;
-		this.g_TargetTicks = -1.0;
-		this.g_ZombieSounds = -1.0;
-		this.spawnpowerups = false;
+		this.target = 0;
+		this.targetTicks = -1.0;
+		this.sounds = -1.0;
+		this.insidemap = false;
 	}
 }
 
@@ -530,14 +595,16 @@ enum struct MachinesData
 	char description[128];
 	char model[PLATFORM_MAX_PATH];
 	float z_offset;
+	int max;
 
-	void CreateMachine(const char[] name, const char[] display, const char[] description, const char[] model, float z_offset)
+	void CreateMachine(const char[] name, const char[] display, const char[] description, const char[] model, float z_offset, int max = 0)
 	{
 		strcopy(this.name, 64, name);
 		strcopy(this.display, 64, display);
 		strcopy(this.description, 128, description);
 		strcopy(this.model, PLATFORM_MAX_PATH, model);
 		this.z_offset = -z_offset;
+		this.max = max;
 		g_TotalMachines++;
 	}
 }
@@ -550,12 +617,14 @@ enum struct Machines
 	int index;
 	int price;
 	int unlock;
+	int glow;
 	
 	void Reset()
 	{
 		this.index = -1;
 		this.price = 0;
 		this.unlock = -1;
+		this.glow = -1;
 	}
 }
 
@@ -566,11 +635,14 @@ int g_TotalCustomWeapons;
 enum struct CustomWeaponsData
 {
 	char name[64];
+	float offset_angles[3];
 	bool secret_box;
 
-	void CreateWeapon(const char[] name, bool secret_box = false)
+	void CreateWeapon(const char[] name, float offset_angles[3] = NULL_VECTOR, bool secret_box = false)
 	{
 		strcopy(this.name, 64, name);
+		for (int i = 0; i < 3; i++)
+			this.offset_angles[i] = offset_angles[i];
 		this.secret_box = secret_box;
 		g_TotalCustomWeapons++;
 	}
@@ -600,25 +672,27 @@ enum struct SecretBox
 SecretBox g_SecretBox[MAX_ENTITY_LIMIT + 1];
 
 //Powerups
-int g_PowerupsCount;
+int g_TotalPowerups;
 enum struct Powerups
 {
 	char name[64];
+	char description[128];
 	char model[PLATFORM_MAX_PATH];
 	char sound[PLATFORM_MAX_PATH];
 	float timer;
 
-	void CreatePowerup(const char[] name, const char[] model, const char[] sound, float timer = 0.0)
+	void CreatePowerup(const char[] name, const char[] description, const char[] model, const char[] sound, float timer = 0.0)
 	{
 		strcopy(this.name, 64, name);
+		strcopy(this.description, 128, description);
 		strcopy(this.model, PLATFORM_MAX_PATH, model);
 		strcopy(this.sound, PLATFORM_MAX_PATH, sound);
 		this.timer = timer;
-		g_PowerupsCount++;
+		g_TotalPowerups++;
 	}
 }
 Powerups g_Powerups[32];
-int g_PowerupIndex[MAX_ENTITY_LIMIT + 1];
+int g_PowerupIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...};
 
 //Buildings
 int g_RechargeBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...};
@@ -683,6 +757,8 @@ public void OnPluginStart()
 {
 	LoadTranslations("common.phrases");
 	CSetPrefix("{haunted}[{lawngreen}Undead{haunted}]");
+
+	RegAdminCmd("sm_testanim", Command_TestAnim, ADMFLAG_ROOT);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
 	RegConsoleCmd("sm_gamemode", Command_MainMenu);
@@ -695,7 +771,9 @@ public void OnPluginStart()
 	RegAdminCmd("sm_setround", Command_SetRound, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_zombie", Command_SpawnZombie, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_zombies", Command_SpawnZombie, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_spawnzombie", Command_SpawnZombie, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_spawnzombies", Command_SpawnZombie, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_killzombie", Command_KillZombie, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_killallzombies", Command_KillAllZombies, ADMFLAG_GENERIC);
@@ -704,8 +782,15 @@ public void OnPluginStart()
 	RegAdminCmd("sm_spawnwave", Command_SpawnWave, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_start", Command_StartMatch, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_play", Command_StartMatch, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_startmatch", Command_StartMatch, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_startgame", Command_StartMatch, ADMFLAG_GENERIC);
+
+	RegAdminCmd("sm_pause", Command_PauseTimer, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_pausetimer", Command_PauseTimer, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_unpause", Command_UnpauseTimer, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_unpausetimer", Command_UnpauseTimer, ADMFLAG_GENERIC);
+
 	RegAdminCmd("sm_pausezombies", Command_PauseZombies, ADMFLAG_GENERIC);
 	RegConsoleCmd("sm_playzombie", Command_PlayZombie);
 
@@ -724,11 +809,29 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_synclobby", Command_SyncLobby, ADMFLAG_GENERIC);
 
+	RegAdminCmd("sm_debugweapons", Command_DebugWeapons, ADMFLAG_ROOT);
+	RegAdminCmd("sm_nextweapon", Command_NextWeapons, ADMFLAG_ROOT);
+	RegAdminCmd("sm_stopdebugweapons", Command_StopDebugWeapons, ADMFLAG_ROOT);
+
 	g_Sync_NearInteractable = new Hud();
 
 	for (int i = 0; i < MAX_NPCS; i++)
-		g_Zombies[i].pPath = PathFollower(_, Path_FilterIgnoreActors, Path_FilterOnlyActors);
+		g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
 	
+	//const char[] name, float damage_multiplier = 1.0, float health_multiplier = 1.0, float points_multiplier = 1.0, float revive_multiplier = 1.0, float wavespawn_rate = 1.0, float wavespawn_min = 1.0, float wavespawn_max = 1.0, float movespeed_multipler = 1.0, int max_zombies = 100
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Baby Mode", 0.1, 0.1, 0.1, 2.0, 0.1, 0.1, 0.1, 0.1, 5);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Easy", 0.6, 0.6, 0.6, 1.7, 0.6, 0.6, 0.6, 0.6, 10);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 25);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 0.8, 1.3, 1.3, 1.3, 1.3, 50);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 0.6, 1.4, 1.4, 1.4, 1.4, 75);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 2.0, 2.0, 2.0, 2.0, 100);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999);
+	
+	SetupMachines();
+	SetupCustomWeapons();
+	SetupPowerups();
+	SetupSpecials();
+
 	int entity = -1; char class[64];
 	while ((entity = FindEntityByClassname(entity, "*")) != -1)
 		if (GetEntityClassname(entity, class, sizeof(class)))
@@ -742,20 +845,8 @@ public void OnPluginStart()
 		if (IsClientInGame(i))
 			OnClientPutInServer(i);
 	}
-	
-	SetupMachines();
-	SetupCustomWeapons();
-	SetupPowerups();
-	SetupSpecials();
 
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Baby Mode", 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 5);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Easy", 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 10);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 25);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 50);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4, 75);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 100);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999);
-
+	AddNormalSoundHook(OnSoundPlay);
 	HookEntityOutput("logic_relay", "OnTrigger", OnRelayTrigger);
 
 	g_Match.Init();
@@ -781,10 +872,10 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret2_lock", false) != -1)
 		g_Match.bomb_heads = false;
-	else if (StrContains(sName, "secret3_unlock", false) != -1)
+	/*else if (StrContains(sName, "secret3_unlock", false) != -1)
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret3_lock", false) != -1)
-		g_Match.bomb_heads = false;
+		g_Match.bomb_heads = false;*/
 }
 
 public void Hook_BlockCvarValue(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -842,6 +933,9 @@ public Action Command_SetAnglesNear(int client, int args)
 public void OnConfigsExecuted()
 {
 	FindConVar("mp_autoteambalance").IntValue = 0;
+	FindConVar("mp_teams_unbalance_limit").IntValue = 0;
+	FindConVar("tf_forced_holiday").IntValue = 2;
+	FindConVar("tf_bot_reevaluate_class_in_spawnroom").IntValue = 0;
 	FindConVar("tf_base_boss_max_turn_rate").IntValue = 10000;
 	FindConVar("tf_base_boss_speed").IntValue = 999;
 
@@ -852,7 +946,7 @@ public void OnConfigsExecuted()
 	if (g_Late)
 	{
 		g_Late = false;
-		StartMatch();
+		InitLobby();
 	}
 }
 
@@ -877,6 +971,12 @@ public void OnPluginEnd()
 public void OnMapStart()
 {
 	//g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
+
+	PrecacheSound(SOUND_LOBBY);
+	PrecacheSound("misc/doomsday_cap_open.wav");
+
+	PrecacheSound("player/crit_received1.wav");
+	PrecacheSound("player/crit_hit.wav");
 
 	for (int i = 0; i < 5; i++)
 		PrecacheParticle(sBloodParticles[i]);
@@ -1147,10 +1247,10 @@ public void TF2_OnRoundStart(bool full_reset)
 	g_Match.roundphase = PHASE_HIBERNATION;
 
 	if (GetTeamAbsCount(3) > 0)
-		StartMatch();
+		InitLobby();
 }
 
-void StartMatch()
+void InitLobby()
 {
 	if (g_Match.roundphase != PHASE_HIBERNATION)
 		return;
@@ -1166,6 +1266,17 @@ void StartMatch()
 
 	for (int i = 1; i <= MaxClients; i++)
 		g_Player[i].Reset();
+	
+	TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
+}
+
+public Action Timer_LobbySound(Handle timer, any data)
+{
+	if (g_Match.roundphase == PHASE_ACTIVE)
+		return Plugin_Stop;
+
+	EmitSoundToAll(SOUND_LOBBY);
+	return Plugin_Continue;
 }
 
 public Action Timer_RoundTimer(Handle timer)
@@ -1177,8 +1288,6 @@ public Action Timer_RoundTimer(Handle timer)
 			strcopy(sPaused, sizeof(sPaused), " (Paused)");
 		else
 			g_Match.roundtime--;
-
-		g_Match.hud_timer.SetParams(0.0, 0.3, 2.0, 57, 255, 54, 255);
 		
 		char sSpec[64];
 		for (int i = 1; i <= MaxClients; i++)
@@ -1199,22 +1308,37 @@ public Action Timer_RoundTimer(Handle timer)
 			else
 				FormatSeconds(float(g_Match.roundtime), sTime, sizeof(sTime), "%S");
 			
-			char sPerk[MAX_NAME_LENGTH]; char sPerks[128]; char sDisplay[MAX_NAME_LENGTH];
+			char sPerk[MAX_NAME_LENGTH]; char sPerks[128]; char sDisplay[MAX_NAME_LENGTH]; char sCount[32];
 			for (int x = 0; x < g_Player[i].perks.Length; x++)
 			{
 				g_Player[i].perks.GetString(x, sPerk, sizeof(sPerk));
 				GetMachineDisplay(sPerk, sDisplay, sizeof(sDisplay));
-				Format(sPerks, sizeof(sPerks), "%s\n [%s]", sPerks, sDisplay);
+
+				sCount[0] = '\0';
+
+				if (GetMachineMax(sPerk) > 1)
+					FormatEx(sCount, sizeof(sCount), " (%i)", g_Player[i].GetPerkCount(sPerk));
+
+				if (StrContains(sPerks, sDisplay, false) == -1)
+					Format(sPerks, sizeof(sPerks), "%s\n [%s%s]", sPerks, sDisplay, sCount);
 			}
 
 			char sDifficulty[64];
 			if (g_Match.difficulty != -1)
 				strcopy(sDifficulty, sizeof(sDifficulty), g_Difficulty[g_Match.difficulty].name);
+
+			g_Match.hud_timer.SetParams(0.0, 0.3, 2.0, 57, 255, 54, 255);
+
+			if (GameRules_GetProp("m_bInWaitingForPlayers"))
+			{
+				g_Match.hud_timer.Send(i, "☰ Starting (%s): Waiting for Players", sDifficulty);
+				return Plugin_Continue;
+			}
 			
 			switch (g_Match.roundphase)
 			{
 				case PHASE_STARTING:
-					g_Match.hud_timer.Send(i, "☰ Match Start (%s): %s%s%s", sDifficulty, sTime, sPaused, sSpec);
+					g_Match.hud_timer.Send(i, "☰ Starting (%s): %s%s%s", sDifficulty, sTime, sPaused, sSpec);
 				case PHASE_WAITING:
 					g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave: %s%s\n☰ Points: %i%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPerks);
 				case PHASE_ACTIVE:
@@ -1234,13 +1358,25 @@ public Action Timer_RoundTimer(Handle timer)
 				if (!IsClientInGame(i))
 					continue;
 				
-				if (GetClientTeam(i) == TEAM_SURVIVORS)
+				if (IsDrixevel(i))
+					g_Player[i].points = 9999999;
+				
+				switch (GetClientTeam(i))
 				{
-					if (!IsPlayerAlive(i))
-						TF2_RespawnPlayer(i);
-					
-					StripPlayer(i);
-					SpeakResponseConcept(i, "TLK_MVM_WAVE_START");
+					case TEAM_SURVIVORS:
+					{
+						if (!IsPlayerAlive(i))
+							TF2_RespawnPlayer(i);
+						
+						StripPlayer(i);
+						SpeakResponseConcept(i, "TLK_MVM_WAVE_START");
+					}
+
+					case TEAM_ZOMBIES:
+					{
+						SetEntProp(i, Prop_Send, "m_lifeState", 0);
+						ForcePlayerSuicide(i);
+					}
 				}
 			}
 
@@ -1260,6 +1396,10 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
 
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i))
+					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
+
 			return Plugin_Continue;
 		}
 
@@ -1273,6 +1413,8 @@ public Action Timer_RoundTimer(Handle timer)
 
 			TelePlayersToMap();
 			UnlockRelays();
+
+			TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
 		}
 
 		case PHASE_WAITING:
@@ -1298,17 +1440,14 @@ public Action Timer_RoundTimer(Handle timer)
 			}
 
 			TelePlayersToMap();
+
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i))
+					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
 		}
 	}
 
 	return Plugin_Continue;
-}
-
-void GetMachineDisplay(const char[] name, char[] display, int size)
-{
-	for (int i = 0; i <= g_TotalMachines; i++)
-		if (StrEqual(g_MachinesData[i].name, name, false))
-			strcopy(display, size, g_MachinesData[i].display);
 }
 
 void UnlockRelays()
@@ -1438,9 +1577,11 @@ public void TF2_OnRoundEnd(int team, int winreason, int flagcaplimit, bool full_
 
 public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflictor, int damagebits, int stun_flags, int death_flags, int customkill)
 {
+	StopTimer(g_Player[client].punchanim);
+
 	if (g_Match.roundphase == PHASE_WAITING || g_Match.roundphase == PHASE_ACTIVE)
 	{
-		if (GetClientTeam(client) == TEAM_SURVIVORS)
+		if (GetTeamAliveCount(TEAM_SURVIVORS) > 0 && GetClientTeam(client) == TEAM_SURVIVORS)
 		{
 			int entity = CreateEntityByName("entity_revive_marker");
 
@@ -1474,6 +1615,26 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 			}
 		}
 
+		if (GetClientTeam(client) == TEAM_ZOMBIES)
+		{
+			if (IsPlayerIndex(attacker))
+			{
+				bool doublepoints;
+				if (IsPlayerIndex(attacker))
+					doublepoints = g_Player[attacker].doublepoints != -1 && g_Player[attacker].doublepoints > GetTime();
+				
+				int points = doublepoints ? 200 : 100;
+
+				if (GetActiveWeaponSlot(attacker) == 2)
+					points = RoundFloat(float(points) * 1.5);
+				
+				g_Player[attacker].AddPoints(points);
+			}
+
+			OnZombieDeath(client, true, true);
+			g_Player[attacker].zombiekills++;
+		}
+
 		CreateTimer(0.5, Timer_ParseRoundEnd, _, TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
@@ -1481,12 +1642,18 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 public Action Timer_ParseRoundEnd(Handle timer)
 {
 	if (GetTeamAliveCount(TEAM_SURVIVORS) < 1)
+	{
+		int entity = -1;
+		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
+			AcceptEntityInput(entity, "Kill");
+
 		TF2_ForceWin(view_as<TFTeam>(TEAM_ZOMBIES));
+	}
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
-	if (StrEqual(classname, "item_currencypack_custom"))
+	if (StrEqual(classname, "item_currencypack_custom") || StrEqual(classname, "tf_ammo_pack"))
 		SDKHook(entity, SDKHook_Spawn, OnCurrencySpawn);
 	
 	if (StrEqual(classname, "trigger_teleport_relative", false) && IsName(entity, "survivor_blocker"))
@@ -1499,8 +1666,8 @@ public void OnEntityCreated(int entity, const char[] classname)
 	if (StrEqual(classname, "trigger_multiple") && IsName(entity, "enable_powerups"))
 		SDKHook(entity, SDKHook_Touch, OnEnablePowerups);
 	
-	if (StrEqual(classname, "func_button"))
-		SDKHook(entity, SDKHook_OnTakeDamagePost, OnButtonTakeDamage);
+	if (StrEqual(classname, "obj_dispenser"))
+		SDKHook(entity, SDKHook_OnTakeDamage, OnDispenserTakeDamage);
 	
 	if (entity > 0)
 	{
@@ -1518,7 +1685,7 @@ public Action OnTeleportTouch(int entity, int other)
 {
 	if (IsPlayerIndex(other) && GetClientTeam(other) == TEAM_ZOMBIES)
 		return Plugin_Stop;
-	
+
 	return Plugin_Continue;
 }
 
@@ -1526,20 +1693,29 @@ public Action OnEnablePowerups(int entity, int other)
 {
 	if (other > MaxClients && IsClassname(other, "base_boss"))
 	{
-		CBaseNPC zombie = TheNPCs.FindNPCByEntIndex(other);
-		g_Zombies[zombie.Index].spawnpowerups = true;
+		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(other);
+		g_Zombies[npc.Index].insidemap = true;
 	}
 }
 
-public void OnButtonTakeDamage(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom)
+public Action OnDispenserTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
-
+	damage = 0.0;
+	return Plugin_Changed;
 }
 
 public void OnEntityDestroyed(int entity)
 {
 	if (entity > MaxClients)
+	{
 		g_WeaponIndex[entity] = -1;
+
+		if (g_PowerupIndex[entity] != -1)
+			StopSound(entity, SNDCHAN_USER_BASE + 14, "undead/powerups/powerup_loop.wav");
+		
+		g_PowerupIndex[entity] = -1;
+	}
+	
 }
 
 public Action Command_RandomZombie(int client, int args)
@@ -1565,6 +1741,7 @@ public Action Command_SpawnWave(int client, int args)
 void SpawnWave(int amount)
 {
 	int total = amount;
+	int special = GetZombieTypeByName("Common");
 
 	float origin[3];
 	for (int i = 1; i <= MaxClients; i++)
@@ -1576,10 +1753,17 @@ void SpawnWave(int amount)
 		GetRandomSpawn(origin);
 		TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 
+		special = GetZombieTypeByName("Common");
+
+		if (GetRandomFloat(0.0, 1000.0) >= 950.0)
+			special = GetRandomInt(1, g_TotalZombieTypes - 1);
+		
+		ApplySpecialUpdates(i, special, origin);
+
 		total--;
 	}
 
-	int special = GetZombieTypeByName("Common");
+	special = GetZombieTypeByName("Common");
 	for (int i = 0; i < total; i++)
 	{
 		special = GetZombieTypeByName("Common");
@@ -1627,11 +1811,22 @@ public Action Command_SpawnZombie(int client, int args)
 		return Plugin_Handled;
 	}
 
+	char sType[64];
+	GetCmdArgString(sType, sizeof(sType));
+
+	int special = GetZombieTypeByName(sType);
+
+	if (special == -1)
+	{
+		CPrintToChat(client, "Zombie type {haunted}%s {default}not found, please try again.");
+		return Plugin_Handled;
+	}
+
 	float origin[3];
 	GetClientLookOrigin(client, origin);
 
-	SpawnZombie(origin);
-	CPrintToChat(client, "You have spawned a zombie.");
+	SpawnZombie(origin, special);
+	CPrintToChat(client, "You have spawned a {haunted}%s {normal}zombie.", sType);
 
 	return Plugin_Handled;
 }
@@ -1683,6 +1878,101 @@ CBaseNPC SpawnRandomZombie(int special = -1)
 	return zombie;
 }
 
+void ApplySpecialUpdates(int client, int special, float origin[3])
+{
+	if (special == -1)
+		special = GetZombieTypeByName("Common");
+	
+	int class = g_ZombieTypes[special].class;
+
+	if (class == -1)
+		class = GetRandomInt(1, 9);
+	else if (class < 1)
+		class = 1;
+	else if (class > 9)
+		class = 9;
+	
+	TF2_SetPlayerClass(client, view_as<TFClassType>(class), false, false);
+
+	if (g_ZombieTypes[special].size != -1.0)
+	{
+		SetEntPropFloat(client, Prop_Send, "m_flModelScale", g_ZombieTypes[special].size);
+		SetEntPropFloat(client, Prop_Send, "m_flStepSize", 18.0 * g_ZombieTypes[special].size);
+	}
+
+	SetEntityRenderMode(client, RENDER_TRANSCOLOR);
+	SetEntityRenderColor(client, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
+
+	int wearable = -1;
+	while ((wearable = FindEntityByClassname(wearable, "tf_wearable*")) != -1)
+	{
+		if (GetEntPropEnt(wearable, Prop_Send, "m_hOwnerEntity") != client)
+			continue;
+		
+		SetEntityRenderMode(wearable, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(wearable, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
+	}
+
+	float speed = g_ZombieTypes[special].speed;
+
+	if (speed == -1.0)
+		speed = 150.0;
+	
+	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
+
+	if (speed) { }
+
+	int health = CalculateHealth(client);
+
+	if (health) { }
+
+	g_Player[client].type = special;
+	g_Player[client].sounds = GetGameTime() + GetRandomFloat(10.0, 30.0);
+	g_Player[client].insidemap = false;
+
+	if (strlen(g_ZombieTypes[special].spawn_sound) > 0 && IsSoundPrecached(g_ZombieTypes[special].spawn_sound))
+		EmitSoundToAll(g_ZombieTypes[special].spawn_sound);
+	
+	if (strlen(g_ZombieTypes[special].death_sound) > 0 && IsSoundPrecached(g_ZombieTypes[special].death_sound)) { }
+	//	EmitSoundToAll(g_ZombieTypes[special].death_sound);
+	
+	if (strlen(g_ZombieTypes[special].particle) > 0)
+		AttachParticle(client, g_ZombieTypes[special].particle, 0.0, "flag");
+	
+	if (special == GetZombieTypeByName("Strapped Engis"))
+	{
+		int dispenser = CreateEntityByName("obj_dispenser");
+		
+		if (IsValidEntity(dispenser))
+		{
+			origin[0] -= 20.0;
+			//origin[1] -= 150.0;
+			origin[2] += 15.0;
+
+			DispatchKeyValueVector(dispenser, "origin", origin);
+			//DispatchKeyValueVector(dispenser, "angles", Angle);
+			DispatchKeyValue(dispenser, "defaultupgrade", "0");
+			DispatchKeyValue(dispenser, "spawnflags", "4");
+			SetEntProp(dispenser, Prop_Send, "m_bBuilding", 1);
+			DispatchSpawn(dispenser);
+
+			SetVariantInt(TEAM_ZOMBIES);
+			AcceptEntityInput(dispenser, "SetTeam");
+			SetEntProp(dispenser, Prop_Send, "m_nSkin", TEAM_ZOMBIES - 2);
+			
+			ActivateEntity(dispenser);
+
+			SetVariantString("!activator");
+			AcceptEntityInput(dispenser, "SetParent", client);
+
+			SetVariantString("flag");
+			AcceptEntityInput(dispenser, "SetParentAttachmentMaintainOffset");
+
+			SetEntProp(dispenser, Prop_Send, "m_bDisabled", 1);
+		}
+	}
+}
+
 CBaseNPC SpawnZombie(float origin[3], int special = -1)
 {
 	int count = GetEntityCountEx("base_boss");
@@ -1707,31 +1997,31 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	else if (class > 9)
 		class = 9;
 	
-	CBaseNPC zombie = new CBaseNPC();
-	zombie.Teleport(origin);
+	CBaseNPC npc = new CBaseNPC();
+	npc.Teleport(origin);
 
 	if (g_Match.spawn_robots)
-		zombie.SetModel(sRobotModels[class]);
+		npc.SetModel(sRobotModels[class]);
 	else
-		zombie.SetModel(sModels[class]);
+		npc.SetModel(sModels[class]);
 
-	zombie.Spawn();
-	zombie.SetThinkFunction(Hook_NPCThink);
-	zombie.SetOnTakeDamageAliveFunction(Hook_NPCDamage);
-	zombie.SetOnTakeDamageAlivePostFunction(Hook_NPCDamagePost);
-	zombie.nSkin = (class == 8) ? 22 : 4;
+	npc.Spawn();
+	npc.SetThinkFunction(Hook_NPCThink);
+	npc.SetOnTraceAttackFunction(OnZombiesTraceAttack);
+	npc.SetOnTakeDamageAliveFunction(OnZombieDamaged);
+	npc.SetOnTakeDamageAlivePostFunction(OnZombieDamagedPost);
 	
 	if (!g_Match.spawn_robots)
 	{
 		int item = -1;
-		if ((item = zombie.EquipItem("head", sZombieAttachments[class])) != -1)
+		if ((item = npc.EquipItem("head", sZombieAttachments[class])) != -1)
 		{
 			SetEntityRenderMode(item, RENDER_TRANSCOLOR);
 			SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
 		}
 	}
 	
-	int entity = zombie.GetEntity();
+	int entity = npc.GetEntity();
 	//CBaseNPC_HookEventKilled(entity);
 
 	if (g_Match.bomb_heads)
@@ -1749,12 +2039,14 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	if (team == -1)
 		team = TEAM_ZOMBIES;
 	
-	zombie.iTeamNum = team;
-	zombie.flStepSize = 18.0;
-	zombie.flGravity = 800.0;
-	zombie.flAcceleration = 4000.0;
-	zombie.flJumpHeight = 85.0;
-	zombie.flDeathDropHeight = 2000.0;
+	npc.nSkin = (class == 8) ? 22 : 4;
+	npc.iTeamNum = team;
+	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;
+	npc.flStepSize = 18.0;
+	npc.flGravity = 800.0;
+	npc.flAcceleration = 4000.0;
+	npc.flJumpHeight = 85.0;
+	npc.flDeathDropHeight = 2000.0;
 
 	float speed = g_ZombieTypes[special].speed;
 
@@ -1763,34 +2055,30 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
 	
-	zombie.flWalkSpeed = speed;
-	zombie.flRunSpeed = speed;
+	npc.flWalkSpeed = speed;
+	npc.flRunSpeed = speed;
 
-	int basehealth = g_ZombieTypes[special].health;
-	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
-	int health = (basehealth + (g_Match.round * 2));
+	int health = CalculateHealth(entity);
+	npc.iMaxHealth = health;
+	npc.iHealth = health;
 	
-	zombie.iMaxHealth = health;
-	zombie.iHealth = health;
-	
-	zombie.Run();
+	npc.Run();
 
 	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
 	animationEntity.PlayAnimation("Stand_MELEE");
 
-	g_Zombies[zombie.Index].entity = entity;
-	g_Zombies[zombie.Index].type = special;
-	g_Zombies[zombie.Index].g_flLastAttackTime = 0.0;
-	g_Zombies[zombie.Index].g_Class = class;
-	g_Zombies[zombie.Index].g_Target = -1;
-	g_Zombies[zombie.Index].g_TargetTicks = -1.0;
-	g_Zombies[zombie.Index].g_ZombieSounds = GetGameTime() + GetRandomFloat(10.0, 30.0);
-	g_Zombies[zombie.Index].spawnpowerups = false;
+	g_Zombies[npc.Index].entity = entity;
+	g_Zombies[npc.Index].class = class;
+	g_Zombies[npc.Index].type = special;
+	g_Zombies[npc.Index].speed = speed;
+	g_Zombies[npc.Index].g_flLastAttackTime = 0.0;
+	g_Zombies[npc.Index].g_Class = class;
+	g_Zombies[npc.Index].target = -1;
+	g_Zombies[npc.Index].targetTicks = -1.0;
+	g_Zombies[npc.Index].sounds = GetGameTime() + GetRandomFloat(10.0, 30.0);
+	g_Zombies[npc.Index].insidemap = false;
 
 	SetEntityCollisionGroup(entity, COLLISION_GROUP_PUSHAWAY);
-
-	if (g_ZombieTypes[special].size != -1.0)
-		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", g_ZombieTypes[special].size);
 	
 	SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
 	SetEntityRenderColor(entity, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
@@ -1803,8 +2091,41 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	if (strlen(g_ZombieTypes[special].particle) > 0)
 		AttachParticle(entity, g_ZombieTypes[special].particle, 0.0, "flag");
+	
+	if (special == GetZombieTypeByName("Strapped Engis"))
+	{
+		int dispenser = CreateEntityByName("obj_dispenser");
+		
+		if (IsValidEntity(dispenser))
+		{
+			origin[0] -= 20.0;
+			//origin[1] -= 150.0;
+			origin[2] += 15.0;
 
-	return zombie;
+			DispatchKeyValueVector(dispenser, "origin", origin);
+			//DispatchKeyValueVector(dispenser, "angles", Angle);
+			DispatchKeyValue(dispenser, "defaultupgrade", "0");
+			DispatchKeyValue(dispenser, "spawnflags", "4");
+			SetEntProp(dispenser, Prop_Send, "m_bBuilding", 1);
+			DispatchSpawn(dispenser);
+
+			SetVariantInt(TEAM_ZOMBIES);
+			AcceptEntityInput(dispenser, "SetTeam");
+			SetEntProp(dispenser, Prop_Send, "m_nSkin", TEAM_ZOMBIES - 2);
+			
+			ActivateEntity(dispenser);
+
+			SetVariantString("!activator");
+			AcceptEntityInput(dispenser, "SetParent", entity);
+
+			SetVariantString("flag");
+			AcceptEntityInput(dispenser, "SetParentAttachmentMaintainOffset");
+
+			SetEntProp(dispenser, Prop_Send, "m_bDisabled", 1);
+		}
+	}
+
+	return npc;
 }
 
 int GetZombieTypeByName(const char[] name)
@@ -1839,52 +2160,103 @@ int TF2_AttachProp(int iClient, const char[] model)
 
 public Action Timer_ZombieTicks(Handle timer)
 {
-	int entity; CBaseNPC zombie; INextBot bot;
+	int entity; CBaseNPC npc; //INextBot bot;
 	for (int i = 0; i < MAX_NPCS; i++)
 	{
 		entity = g_Zombies[i].entity;
-		zombie = TheNPCs.FindNPCByEntIndex(entity);
+		npc = TheNPCs.FindNPCByEntIndex(entity);
 		
-		if (zombie == INVALID_NPC)
+		if (npc == INVALID_NPC)
 			continue;
 		
-		bot = zombie.GetBot();
+		//bot = zombie.GetBot();
 		
 		if (g_Match.pausezombies)
 		{
-			g_Zombies[zombie.Index].pPath.ComputeToTarget(bot, entity);
-			g_Zombies[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
+			//g_Zombies[npc.Index].pPath.ComputeToTarget(bot, entity);
+			//g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 		}
 		else
 		{
-			int target = g_Zombies[zombie.Index].g_Target;
+			int target = g_Zombies[npc.Index].target;
 
-			if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) != TEAM_SURVIVORS)
-				g_Zombies[zombie.Index].g_Target = GetZombieTarget();
+			if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) != npc.iTeamNum)
+				g_Zombies[npc.Index].target = GetZombieTarget();
 			
-			if (g_Zombies[zombie.Index].g_Target != -1)
+			if (g_Zombies[npc.Index].target != -1)
 			{
-				g_Zombies[zombie.Index].pPath.ComputeToTarget(bot, g_Zombies[zombie.Index].g_Target);
-				g_Zombies[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
+				//g_Zombies[npc.Index].pPath.ComputeToTarget(bot, g_Zombies[npc.Index].target);
+				//g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 			}
 			else
 			{
-				g_Zombies[zombie.Index].pPath.ComputeToTarget(bot, entity);
-				g_Zombies[zombie.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
+				//g_Zombies[npc.Index].pPath.ComputeToTarget(bot, entity);
+				//g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(ZOMBIE_FACE_DISTANCE);
 			}
+
+			if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
+				OnEngiZombieTick(entity);
 		}
+	}
+
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !g_Player[i].zombie)
+			continue;
+	
+		if (g_Player[i].type == GetZombieTypeByName("Strapped Engis"))
+			OnEngiZombieTick(i);
+	}
+}
+
+void OnEngiZombieTick(int entity)
+{
+	float origin[3];
+	if (entity > MaxClients)
+		GetEntityOrigin(entity, origin);
+	else
+		GetClientAbsOrigin(entity, origin);
+
+	float targetorigin[3]; CBaseNPC npc;
+	for (int i = 0; i < MAX_NPCS; i++)
+	{
+		int entity2 = g_Zombies[i].entity;
+
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity2)) == INVALID_NPC)
+			continue;
+		
+		GetEntityOrigin(entity2, targetorigin);
+
+		if (GetVectorDistance(origin, targetorigin) >= 500.0 || npc.iMaxHealth < npc.iHealth)
+			continue;
+		
+		npc.iHealth += 2;
+	}
+
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
+			continue;
+		
+		GetClientAbsOrigin(i, targetorigin);
+		
+		if (GetVectorDistance(origin, targetorigin) >= 500.0)
+			continue;
+
+		//SetEntityHealth(i, GetClientHealth(i) + 2);
+		TF2_AddPlayerHealth(i, 2, 1.0, true, true, -1);
 	}
 }
 
 public void Hook_NPCThink(int entity)
 {
-	CBaseNPC zombie = TheNPCs.FindNPCByEntIndex(entity);
+	CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
 
-	if (zombie == INVALID_NPC)
+	if (npc == INVALID_NPC)
 		return;
 
-	INextBot bot = zombie.GetBot();
-	NextBotGroundLocomotion loco = zombie.GetLocomotion();
+	INextBot bot = npc.GetBot();
+	NextBotGroundLocomotion loco = npc.GetLocomotion();
 	
 	float vecNPCPos[3];
 	bot.GetPosition(vecNPCPos);
@@ -1893,19 +2265,19 @@ public void Hook_NPCThink(int entity)
 	GetEntPropVector(entity, Prop_Data, "m_angAbsRotation", vecNPCAng);
 	
 	float time = GetGameTime();
-	if (g_Zombies[zombie].g_ZombieSounds != -1.0 && g_Zombies[zombie.Index].g_ZombieSounds <= time)
+	if (g_Zombies[npc].sounds != -1.0 && g_Zombies[npc.Index].sounds <= time && npc.iHealth > 0)
 	{
 		char sSound[PLATFORM_MAX_PATH];
 		FormatEx(sSound, sizeof(sSound), "undead/zombies/undead_zombie0%i.wav", GetRandomInt(1, 7));
 		EmitSoundToAll(sSound, entity);
 
-		g_Zombies[zombie.Index].g_ZombieSounds = time + GetRandomFloat(5.0, 30.0);
+		g_Zombies[npc.Index].sounds = time + GetRandomFloat(5.0, 30.0);
 	}
 
 	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
-	int target = g_Zombies[zombie.Index].g_Target;
+	int target = g_Zombies[npc.Index].target;
 
-	if (target == -1)
+	if (target < 1)
 	{
 		animationEntity.PlayAnimation("Stand_MELEE");
 		return;
@@ -1915,10 +2287,10 @@ public void Hook_NPCThink(int entity)
 	GetClientAbsOrigin(target, vecTargetPos);
 	
 	if (GetVectorDistance(vecNPCPos, vecTargetPos) > ZOMBIE_HIT_DISTANCE)
-		g_Zombies[zombie.Index].pPath.Update(bot);
-	else if (g_Zombies[zombie.Index].g_flLastAttackTime <= GetGameTime())
+		g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
+	else if (g_Zombies[npc.Index].g_flLastAttackTime <= GetGameTime())
 	{
-		g_Zombies[zombie.Index].g_flLastAttackTime = GetGameTime() + 0.5;
+		g_Zombies[npc.Index].g_flLastAttackTime = GetGameTime() + 0.5;
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
 		
 		float damage = GetRandomFloat(ZOMBIE_MIN_DAMAGE, ZOMBIE_MAX_DAMAGE) * g_Difficulty[g_Match.difficulty].damage_multiplier;
@@ -1931,11 +2303,11 @@ public void Hook_NPCThink(int entity)
 		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
 		SpeakResponseConcept(target, "TLK_PLAYER_PAIN");
 
-		int type = g_Zombies[zombie.Index].type;
+		int type = g_Zombies[npc.Index].type;
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			TF2_AddCondition(target, TFCond_OnFire, 6.0);
-		else if (type == GetZombieTypeByName("Spymin"))
+		else if (type == GetZombieTypeByName("Spikey Bois"))
 			TF2_AddCondition(target, TFCond_Bleeding, 6.0);
 		
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", target);
@@ -2002,7 +2374,7 @@ public void Hook_NPCThink(int entity)
 		}
 
 		float vecForward[3]; float vecRight[3]; float vecUp[3];
-		zombie.GetVectors(vecForward, vecRight, vecUp);
+		npc.GetVectors(vecForward, vecRight, vecUp);
 
 		float vecMotion[3];
 		loco.GetGroundMotionVector(vecMotion);
@@ -2036,7 +2408,19 @@ int GetZombieTarget()
 	return (amount == 0) ? -1 : clients[GetRandomInt(0, amount - 1)];
 }
 
-public Action Hook_NPCDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
+public Action OnZombiesTraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& ammotype, int hitbox, int hitgroup)
+{
+	if (hitbox == 0 && hitgroup == 1)
+	{
+		damage *= 1.25;
+		damagetype |= DMG_CRIT;
+		return Plugin_Changed;
+	}
+
+	return Plugin_Continue;
+}
+
+public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	CBaseNPC zombie = TheNPCs.FindNPCByEntIndex(victim);
 
@@ -2049,11 +2433,21 @@ public Action Hook_NPCDamage(int victim, int& attacker, int& inflictor, float& d
 		damage = 999999.0;
 		changed = true;
 	}
+
+	if ((damagetype & DMG_CRIT) == DMG_CRIT)
+	{
+		EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
+		if (attacker > 0 && attacker != victim)
+		{
+			TE_Particle("crit_text", damagePosition);
+			EmitSoundToClient(attacker, "player/crit_hit.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 85);
+		}
+	}
 	
 	return changed ? Plugin_Changed : Plugin_Continue;
 }
 
-public void Hook_NPCDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], float damagePosition[3], int damagecustom)
+public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	CBaseNPC zombie = TheNPCs.FindNPCByEntIndex(victim);
 
@@ -2063,7 +2457,7 @@ public void Hook_NPCDamagePost(int victim, int attacker, int inflictor, float da
 	if (GetRandomFloat(0.0, 100.0) >= 50.0)
 		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
 	
-	if (GetRandomFloat(0.0, 100.0) >= 75.0)
+	if (GetRandomFloat(0.0, 100.0) >= 75.0 && IsPlayerAlive(victim))
 	{
 		char sSound[PLATFORM_MAX_PATH];
 		FormatEx(sSound, sizeof(sSound), "undead/zombies/undead_zombie0%i.wav", GetRandomInt(1, 7));
@@ -2135,7 +2529,7 @@ bool PushPlayersFromPoint(float point[3], float magnitude = 50.0, float radius =
 
 public Action Command_StartMatch(int client, int args)
 {
-	StartMatch();
+	g_Match.roundtime = 5;
 	return Plugin_Handled;
 }
 
@@ -2205,6 +2599,8 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 			case TFClass_Sniper:
 				TF2Attrib_ApplyMoveSpeedPenalty(client, 0.34);
 		}
+
+		g_Player[client].type = GetZombieTypeByName("Common");
 	}
 	else
 	{
@@ -2246,7 +2642,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 	}
 	
 	if (g_Match.roundphase == PHASE_HIBERNATION)
-		StartMatch();
+		InitLobby();
 
 	return Plugin_Stop;
 }
@@ -2313,7 +2709,28 @@ public void TF2_OnClassChangePost(int client, TFClassType class)
 
 public Action Command_PauseTimer(int client, int args)
 {
-	g_Match.pausetimer = !g_Match.pausetimer;
+	if (g_Match.pausetimer)
+	{
+		CPrintToChat(client, "Round is currently paused already.");
+		return Plugin_Handled;
+	}
+
+	g_Match.pausetimer = true;
+	g_Match.pausezombies = true;
+	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
+	return Plugin_Handled;
+}
+
+public Action Command_UnpauseTimer(int client, int args)
+{
+	if (!g_Match.pausetimer)
+	{
+		CPrintToChat(client, "Round is currently not paused.");
+		return Plugin_Handled;
+	}
+
+	g_Match.pausetimer = false;
+	g_Match.pausezombies = false;
 	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
 	return Plugin_Handled;
 }
@@ -2334,6 +2751,7 @@ public void OnClientPutInServer(int client)
 {
 	SDKHook(client, SDKHook_GetMaxHealth, OnGetMaxHealth);
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 	SDKHook(client, SDKHook_PreThink, OnClientThink);
 }
 
@@ -2341,11 +2759,7 @@ public Action OnGetMaxHealth(int client, int &MaxHealth)
 {
 	if (IsPlayerIndex(client) && IsClientInGame(client))
 	{
-		if (g_Player[client].zombie)
-			MaxHealth = (15 + (g_Match.round * 2));
-		else
-			MaxHealth = g_Player[client].HasPerk("juggernog") ? 300 : 150;
-		
+		MaxHealth = CalculateHealth(client);
 		return Plugin_Changed;
 	}
 
@@ -2359,17 +2773,84 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 		damage = 0.0;
 		return Plugin_Changed;
 	}
+
+	bool changed;
+	if (g_Player[victim].zombie)
+	{
+		if (IsPlayerIndex(attacker) && g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
+		{
+			damage = 999999.0;
+			changed = true;
+		}
+
+		if ((damagetype & DMG_CRIT) == DMG_CRIT)
+		{
+			EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
+			if (attacker > 0 && attacker != victim)
+			{
+				TE_Particle("crit_text", damagePosition);
+				EmitSoundToClient(attacker, "player/crit_hit.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 85);
+			}
+		}
+	}
 	
 	if (attacker > 0 && attacker <= MaxClients && g_Player[attacker].zombie)
 	{
+		damage = GetRandomFloat(ZOMBIE_MIN_DAMAGE, ZOMBIE_MAX_DAMAGE) * g_Difficulty[g_Match.difficulty].damage_multiplier;
+
+		if (g_Match.round >= 20)
+			damage *= 2.0;
+		else if (g_Match.round >= 15)
+			damage *= 1.5;
+		
+		changed = true;
+		
+		SpeakResponseConcept(victim, "TLK_PLAYER_PAIN");
+
+		int type = g_Player[attacker].type;
+
+		if (type == GetZombieTypeByName("Ignition Pyro"))
+			TF2_AddCondition(victim, TFCond_OnFire, 6.0);
+		else if (type == GetZombieTypeByName("Spikey Bois"))
+			TF2_AddCondition(victim, TFCond_Bleeding, 6.0);
+		
+		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", victim);
+
 		StopTimer(g_RegenTimer[victim]);
 		g_RegenTimer[victim] = CreateTimer(4.0, Timer_Regen, victim, TIMER_FLAG_NO_MAPCHANGE);
-
-		damage = GetRandomFloat(5.0, 15.0);
-		return Plugin_Changed;
 	}
 
-	return Plugin_Continue;
+	return changed ? Plugin_Changed : Plugin_Continue;
+}
+
+public void OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], float damagePosition[3], int damagecustom)
+{
+	if (!g_Player[victim].zombie)
+		return;
+	
+	if (GetRandomFloat(0.0, 100.0) >= 50.0)
+		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
+	
+	if (GetRandomFloat(0.0, 100.0) >= 75.0 && IsPlayerAlive(victim))
+	{
+		char sSound[PLATFORM_MAX_PATH];
+		FormatEx(sSound, sizeof(sSound), "undead/zombies/undead_zombie0%i.wav", GetRandomInt(1, 7));
+		EmitSoundToAll(sSound, victim);
+	}
+
+	if (IsPlayerIndex(attacker) && GetClientTeam(attacker) == GetClientTeam(victim))
+		return;
+	
+	bool doublepoints;
+	if (IsPlayerIndex(attacker))
+		doublepoints = g_Player[attacker].doublepoints != -1 && g_Player[attacker].doublepoints > GetTime();
+	
+	int points = doublepoints ? 20 : 10;
+
+	if (GetActiveWeaponSlot(attacker) == 2)
+		points = RoundFloat(float(points) * 1.5);
+	
+	g_Player[attacker].AddPoints(doublepoints ? 20 : 10);
 }
 
 public Action OnClientThink(int client)
@@ -2377,13 +2858,13 @@ public Action OnClientThink(int client)
 	if (g_Player[client].zombie)
 	{
 		float time = GetGameTime();
-		if (g_Player[client].zombie_sounds != -1.0 && g_Player[client].zombie_sounds <= time)
+		if (g_Player[client].sounds != -1.0 && g_Player[client].sounds <= time && IsPlayerAlive(client))
 		{
 			char sSound[PLATFORM_MAX_PATH];
 			FormatEx(sSound, sizeof(sSound), "undead/zombies/undead_zombie0%i.wav", GetRandomInt(1, 7));
 			EmitSoundToAll(sSound, client);
 
-			g_Player[client].zombie_sounds = time + GetRandomFloat(5.0, 30.0);
+			g_Player[client].sounds = time + GetRandomFloat(5.0, 30.0);
 		}
 	}
 
@@ -2451,6 +2932,22 @@ public Action OnClientCommand(int client, int args)
 		CPrintToChat(client, "You are not allowed to use the Eureka Effect.");
 		return Plugin_Stop;
 	}
+	else if ((StrEqual(sCommand, "voicemenu", false) || StrContains(sCommand, "taunt", false) != -1) && g_Player[client].zombie)
+	{
+		float time = GetGameTime();
+		if (g_Player[client].sounds != -1.0 && g_Player[client].sounds <= time && IsPlayerAlive(client))
+		{
+			char sSound[PLATFORM_MAX_PATH];
+			FormatEx(sSound, sizeof(sSound), "undead/zombies/undead_zombie0%i.wav", GetRandomInt(1, 7));
+			EmitSoundToAll(sSound, client);
+
+			g_Player[client].sounds = time + GetRandomFloat(5.0, 30.0);
+		}
+		
+		return Plugin_Stop;
+	}
+	
+	//PrintToDrixevel(sCommand);
 
 	return Plugin_Continue;
 }
@@ -2485,7 +2982,7 @@ public void OnGameFrame()
 
 public Action TF2_OnCallMedic(int client)
 {
-	if (g_Match.pausetimer)
+	if (g_Match.pausetimer || g_Player[client].zombie)
 		return Plugin_Stop;
 	
 	g_Player[client].interact = GetTime() + 2;
@@ -2495,10 +2992,21 @@ public Action TF2_OnCallMedic(int client)
 		int entity = g_Player[client].nearmachine;
 		int index = g_Machines[entity].index;
 
-		if (!g_Player[client].RemovePoints(g_Machines[entity].price) || g_Player[client].HasPerk(g_MachinesData[index].name))
+		if (!g_Player[client].RemovePoints(g_Machines[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			CPrintToChat(client, "You must have {haunted}%i {default}points to unlock this perk.", g_Machines[entity].price);
+		}
+		else if (g_Player[client].HasPerk(g_MachinesData[index].name))
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+
+			if (GetMachineMax(g_MachinesData[index].name) == 1)
+				CPrintToChat(client, "You have already purchased this perk.");
+			else
+				CPrintToChat(client, "You have maxed out the amount of perks for this machine.");
 		}
 		else
 		{
@@ -2538,7 +3046,7 @@ public Action TF2_OnCallMedic(int client)
 		}
 		else
 		{
-			SpeakResponseConcept(client, "TLK_MVM_LOOT_COMMON");
+			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
 			GiveWallWeapon(client, index);
@@ -2624,13 +3132,13 @@ public Action TF2_OnCallMedic(int client)
 
 void SetupMachines()
 {
-	g_MachinesData[g_TotalMachines].CreateMachine("quickrevive", "Quick Revive", "Respawn players faster.", "models/undead/machines/quickrevive/quickrevive.mdl", 75.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("speedcola", "Speed Cola", "Decrease reload and switch time for weapons.", "models/undead/machines/speedcola/speedcola.mdl", 85.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("juggernog", "Juggernog", "Increase your healthpool.", "models/undead/machines/juggernog/juggernog .mdl", 80.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("packapunch", "Packapunch", "Upgrade your currently active weapons damage, fire rate and reload time.", "models/undead/machines/packapunch/packapunch.mdl", 60.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("staminup", "Staminup", "Increase your movement speed.", "models/undead/machines/staminup/staminup.mdl", 10.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("deadshot", "Deadshot", "Add projectile pentrations to your weapons.", "models/undead/machines/deadshot/deadshot.mdl", 10.0);
-	g_MachinesData[g_TotalMachines].CreateMachine("doubletap", "Doubletap", "Increase the amount of bullets per shot.", "models/undead/machines/doubletap/doubletap2.mdl", 8.0);
+	g_MachinesData[g_TotalMachines].CreateMachine("quickrevive", "Quick Revive", "Respawn players faster.", "models/undead/machines/quickrevive/quickrevive.mdl", 75.0, 1);
+	g_MachinesData[g_TotalMachines].CreateMachine("speedcola", "Speed Cola", "Decrease reload and switch time for weapons.", "models/undead/machines/speedcola/speedcola.mdl", 85.0, 1);
+	g_MachinesData[g_TotalMachines].CreateMachine("juggernog", "Juggernog", "Increase your healthpool.", "models/undead/machines/juggernog/juggernog .mdl", 80.0, 1);
+	g_MachinesData[g_TotalMachines].CreateMachine("packapunch", "Packapunch", "Upgrade your currently active weapons damage, fire rate and reload time.", "models/undead/machines/packapunch/packapunch.mdl", 60.0, 5);
+	g_MachinesData[g_TotalMachines].CreateMachine("staminup", "Staminup", "Increase your movement speed.", "models/undead/machines/staminup/staminup.mdl", 10.0, 1);
+	g_MachinesData[g_TotalMachines].CreateMachine("deadshot", "Deadshot", "Add projectile pentrations to your weapons.", "models/undead/machines/deadshot/deadshot.mdl", 10.0, 1);
+	g_MachinesData[g_TotalMachines].CreateMachine("doubletap", "Doubletap", "Increase the amount of bullets per shot.", "models/undead/machines/doubletap/doubletap2.mdl", 8.0, 1);
 }
 
 void SpawnMachines()
@@ -2671,11 +3179,12 @@ void SpawnMachines()
 		SetEntitySolidType(machine, SOLID_TYPE_VPHYSICS);
 		SetEntityCollisionGroup(machine, COLLISION_GROUP_INTERACTIVE);
 
-		TF2_CreateGlow("machine_color", machine, view_as<int>({200, 200, 255, 150}));
+		int glow = TF2_CreateGlow("machine_color", machine, view_as<int>({200, 200, 255, 150}));
 
 		g_Machines[machine].index = index;
 		g_Machines[machine].price = StringToInt(sCost);
 		g_Machines[machine].unlock = unlock;
+		g_Machines[machine].glow = glow;
 
 		SDKHook(machine, SDKHook_OnTakeDamagePost, OnMachineDamage);
 	}
@@ -2743,6 +3252,22 @@ int GetMachine(const char[] name)
 	return -1;
 }
 
+void GetMachineDisplay(const char[] name, char[] display, int size)
+{
+	for (int i = 0; i <= g_TotalMachines; i++)
+		if (StrEqual(g_MachinesData[i].name, name, false))
+			strcopy(display, size, g_MachinesData[i].display);
+}
+
+int GetMachineMax(const char[] name)
+{
+	for (int i = 0; i <= g_TotalMachines; i++)
+		if (StrEqual(name, g_MachinesData[i].name, false))
+			return g_MachinesData[i].max;
+	
+	return 0;
+}
+
 void DestroyMachines()
 {
 	int entity = -1;
@@ -2760,7 +3285,7 @@ void TF2Attrib_SetFireRateBonus(int weapon, float bonus)
 	float firerate;
 	Address addr = TF2Attrib_GetByName(weapon, "fire rate bonus");
 
-	firerate = addr != Address_Null ? TF2Attrib_GetValue(addr) : 1.00 - bonus;
+	firerate = addr != Address_Null ? TF2Attrib_GetValue(addr) - bonus : 1.00 - bonus;
 	TF2Attrib_SetByName(weapon, "fire rate bonus", firerate);
 }
 
@@ -2770,48 +3295,48 @@ void TF2Attrib_SetFireRateBonus(int weapon, float bonus)
 
 void SetupCustomWeapons()
 {
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raiding Aid");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Steel Battalion");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Twenty-Six Shooter");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Bolshevik Bomber");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Maxim GUN");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Soviet Sweeper");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Co's Jewel");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Pseudonailgun");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tempest");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Broomhandle Backup");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Burping Blaster");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Point Man's Carbine");
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Engineer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Wunderwaffe DG2", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Heavy", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Graphite Perisher", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Heavy Artillery", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Persistent Persuasion", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Portable Ordnance", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Heavy", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Heavy", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big Iron", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Blundergat", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Boston Bulldog", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Desk Fan", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Hand Cannon", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Scout", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("AK47", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Brief Negotiator", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Country Killer", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Lil Mate", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Fruit Shop Fiend", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Manncannon", true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Moonbeam", true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raiding Aid", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Steel Battalion", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Twenty-Six Shooter", view_as<float>({0.0, 270.0, 90.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Bolshevik Bomber", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Maxim GUN", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Soviet Sweeper", view_as<float>({0.0, 270.0, 90.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Co's Jewel", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Pseudonailgun", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tempest", view_as<float>({90.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Broomhandle Backup", view_as<float>({0.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Burping Blaster", view_as<float>({90.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Point Man's Carbine", view_as<float>({90.0, 180.0, 0.0}));
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Engineer", view_as<float>({0.0, 270.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Wunderwaffe DG2", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Heavy", view_as<float>({0.0, 270.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Graphite Perisher", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Heavy Artillery", view_as<float>({0.0, 180.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Persistent Persuasion", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Portable Ordnance", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Heavy", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Heavy", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big Iron", view_as<float>({0.0, 270.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Blundergat", view_as<float>({0.0, 270.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Boston Bulldog", view_as<float>({90.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Desk Fan", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Hand Cannon", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Scout", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("AK47", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Brief Negotiator", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Country Killer", view_as<float>({0.0, 270.0, 90.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Lil Mate", view_as<float>({90.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Fruit Shop Fiend", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Manncannon", view_as<float>({0.0, 180.0, 0.0}), true);
+	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Moonbeam", view_as<float>({0.0, 180.0, 0.0}), true);
 }
 
 void SpawnWeapons()
@@ -2956,10 +3481,10 @@ void GiveWallWeapon(int client, int index)
 
 void SetupPowerups()
 {
-	g_Powerups[g_PowerupsCount].CreatePowerup("Double Points", "models/undead/powerups/undead_powerup_x2.mdl", "undead/powerups/powerup_double_points.wav", 20.0);
-	g_Powerups[g_PowerupsCount].CreatePowerup("Instant Kill", "models/undead/powerups/undead_powerup_instant_kill.mdl", "undead/powerups/powerup_instant_kill.wav", 20.0);
-	g_Powerups[g_PowerupsCount].CreatePowerup("Nuke", "models/undead/powerups/undead_powerup_nuke.mdl", "undead/powerups/powerup_nuke.wav");
-	g_Powerups[g_PowerupsCount].CreatePowerup("Max Ammo", "models/undead/powerups/undead_powerup_max_ammo.mdl", "undead/powerups/powerup_max_ammo.wav");
+	g_Powerups[g_TotalPowerups].CreatePowerup("Double Points", "Grants you double the points for 20 seconds.", "models/undead/powerups/undead_powerup_x2.mdl", "undead/powerups/powerup_double_points.wav", 20.0);
+	g_Powerups[g_TotalPowerups].CreatePowerup("Instant Kill", "Instantly kill zombies for 20 seconds.", "models/undead/powerups/undead_powerup_instant_kill.mdl", "undead/powerups/powerup_instant_kill.wav", 20.0);
+	g_Powerups[g_TotalPowerups].CreatePowerup("Nuke", "Kill all zombies on the map.", "models/undead/powerups/undead_powerup_nuke.mdl", "undead/powerups/powerup_nuke.wav");
+	g_Powerups[g_TotalPowerups].CreatePowerup("Max Ammo", "Refills all of your weapons automatically.", "models/undead/powerups/undead_powerup_max_ammo.mdl", "undead/powerups/powerup_max_ammo.wav");
 }
 
 public Action Command_SpawnPowerup(int client, int args)
@@ -2983,11 +3508,11 @@ public Action Command_SpawnPowerup(int client, int args)
 
 void OpenPowerupsMenu(int client)
 {
-	Menu menu = new Menu(MenuHandler_Powerups);
+	Menu menu = new Menu(MenuHandler_SpawnPowerups);
 	menu.SetTitle("Pick a Powerup:");
 
 	char sIndex[16];
-	for (int i = 0; i <= g_PowerupsCount; i++)
+	for (int i = 0; i < g_TotalPowerups; i++)
 	{
 		IntToString(i, sIndex, sizeof(sIndex));
 		menu.AddItem(sIndex, g_Powerups[i].name);
@@ -2996,7 +3521,7 @@ void OpenPowerupsMenu(int client)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int MenuHandler_Powerups(Menu menu, MenuAction action, int param1, int param2)
+public int MenuHandler_SpawnPowerups(Menu menu, MenuAction action, int param1, int param2)
 {
 	switch (action)
 	{
@@ -3004,14 +3529,15 @@ public int MenuHandler_Powerups(Menu menu, MenuAction action, int param1, int pa
 		{
 			char sIndex[16];
 			menu.GetItem(param2, sIndex, sizeof(sIndex));
+			int index = StringToInt(sIndex);
 			
 			float origin[3];
 			GetClientLookOrigin(param1, origin);
-
-			int index = StringToInt(sIndex);
 			
 			CPrintToChat(param1, "Spawning Powerup {haunted}%i{default}: {haunted}%s", index, g_Powerups[index].name);
 			SpawnPowerup(origin, index);
+
+			OpenPowerupsMenu(param1);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -3021,7 +3547,7 @@ public int MenuHandler_Powerups(Menu menu, MenuAction action, int param1, int pa
 void SpawnPowerup(float origin[3], int index = -1)
 {
 	if (index == -1)
-		index = GetRandomInt(0, g_PowerupsCount);
+		index = GetRandomInt(0, g_TotalPowerups - 1);
 
 	int entity = CreateEntityByName("tf_halloween_pickup");
 
@@ -3213,7 +3739,7 @@ void DestroySecretBoxes()
 void StartSecretBoxEvent(int client, int secretbox)
 {
 	g_SecretBox[secretbox].inuse = true;
-	AcceptEntityInput(g_SecretBox[secretbox].glow, "Disabled");
+	AcceptEntityInput(g_SecretBox[secretbox].glow, "Disable");
 
 	AnimateEntity(secretbox, "opening");
 	EmitSoundToAll("undead/mystery_box.wav", secretbox);
@@ -3221,10 +3747,11 @@ void StartSecretBoxEvent(int client, int secretbox)
 	float origin[3];
 	GetEntityOrigin(secretbox, origin);
 
+	int index = GetRandomSecretWeapon(client);
+
 	int display = CreateEntityByName("prop_dynamic_override");
 	DispatchKeyValueVector(display, "origin", origin);
-
-	int index = GetRandomSecretWeapon(client);
+	DispatchKeyValueVector(display, "angles", g_CustomWeapons[index].offset_angles);
 
 	char sModel[PLATFORM_MAX_PATH];
 	TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
@@ -3233,7 +3760,7 @@ void StartSecretBoxEvent(int client, int secretbox)
 
 	DispatchSpawn(display);
 	SetEntitySelfDestruct(display, 15.0);
-	TF2_CreateGlow("display_color", display);
+	TF2_CreateGlow("display_color", display, {255, 255, 255, 200});
 	
 	DataPack pack;
 	CreateDataTimer(0.1, Timer_SecretBox, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
@@ -3267,7 +3794,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 		{
 			AnimateEntity(secretbox, "closing");
 			g_SecretBox[secretbox].inuse = false;
-			AcceptEntityInput(g_SecretBox[secretbox].glow, "Enabled");
+			AcceptEntityInput(g_SecretBox[secretbox].glow, "Enable");
 		}
 		
 		return Plugin_Stop;
@@ -3286,11 +3813,12 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 	
 	if (phase == 0)
 	{
-		origin[2] += 0.8;
-		DispatchKeyValueVector(display, "origin", origin);
-
 		index = GetRandomSecretWeapon(client);
 
+		origin[2] += 0.8;
+		DispatchKeyValueVector(display, "origin", origin);
+		DispatchKeyValueVector(display, "angles", g_CustomWeapons[index].offset_angles);
+		
 		char sModel[PLATFORM_MAX_PATH];
 		TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
 
@@ -3316,7 +3844,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 
 		if (g_Player[client].interact != -1 && g_Player[client].interact > GetTime() && GetVectorDistance(playerorigin, boxorigin) <= 120.0)
 		{
-			SpeakResponseConcept(client, "TLK_MVM_LOOT_RARE");
+			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 			TF2Items_GiveItem(client, g_CustomWeapons[index].name);
 			CloseSecretBox(display, secretbox);
 		}
@@ -3342,7 +3870,7 @@ void CloseSecretBox(int display, int secretbox)
 	{
 		AnimateEntity(secretbox, "closing");
 		g_SecretBox[secretbox].inuse = false;
-		AcceptEntityInput(g_SecretBox[secretbox].glow, "Enabled");
+		AcceptEntityInput(g_SecretBox[secretbox].glow, "Enable");
 	}
 }
 
@@ -3402,6 +3930,9 @@ void OnPlankTick(int entity)
 	int health = GetEntProp(entity, Prop_Data, "m_iHealth");
 	bool disabled = GetEntProp(entity, Prop_Data, "m_iDisabled") == 1;
 
+	float fOrigin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
+
 	char sCooldown[32]; float diff;
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -3412,27 +3943,34 @@ void OnPlankTick(int entity)
 		{
 			case TEAM_ZOMBIES:
 			{
-				if (!IsVisibleTo(entity, i, 100.0, true))
+				if (disabled || !IsVisibleTo(i, entity, 125.0, false))
 					continue;
 				
 				if (health <= 0)
 				{
-					g_Player[i].zombie_sounds = -1.0;
+					g_Player[i].sounds = -1.0;
 					AcceptEntityInput(entity, "Disable");
 					RecomputeNavs();
 					EmitGameSoundToAll("Breakable.Crate", entity);
+					TE_Particle("mvm_loot_smoke", fOrigin);
 					g_RebuildDelay[entity] = GetGameTime() + 30.0;
+					TF2_RemoveCondition(i, TFCond_FreezeInput);
+					g_Player[i].forceattack = false;
 					continue;
 				}
 
 				float time = GetGameTime();
-				if (g_Player[i].zombie_sounds == -1.0 || g_Player[i].zombie_sounds != -1.0 && g_Player[i].zombie_sounds <= time)
+				if (g_Player[i].sounds == -1.0 || g_Player[i].sounds != -1.0 && g_Player[i].sounds <= time)
 				{
 					EmitGameSoundToAll("Breakable.Crate", entity);
-					g_Player[i].zombie_sounds = time + 1.0;
+					TE_Particle("mvm_loot_smoke", fOrigin);
+					g_Player[i].sounds = time + 1.0;
 				}
 				
 				SetEntProp(entity, Prop_Data, "m_iHealth", health - 1);
+				TF2_AddCondition(i, TFCond_FreezeInput);
+				g_Player[i].forceattack = true;
+				g_Player[i].target_plank = entity;
 			}
 			case TEAM_SURVIVORS:
 			{
@@ -3460,9 +3998,6 @@ void OnPlankTick(int entity)
 	if (disabled)
 		return;
 	
-	float fOrigin[3];
-	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
-	
 	int zombie = -1;
 	while ((zombie = FindEntityByClassname(zombie, "base_boss")) != -1)
 	{
@@ -3474,7 +4009,7 @@ void OnPlankTick(int entity)
 		if (health <= 0)
 		{
 			g_BreakingSounds[zombie] = -1;
-			npc.flRunSpeed = 150.0 * (1.0 + (g_Match.round * 0.05));
+			npc.flRunSpeed = g_Zombies[npc.Index].speed;
 			AcceptEntityInput(entity, "Disable");
 			RecomputeNavs();
 
@@ -3485,21 +4020,29 @@ void OnPlankTick(int entity)
 			continue;
 		}
 
-		int time = GetTime();
-		if (g_BreakingSounds[zombie] == -1 || g_BreakingSounds[zombie] != -1 && g_BreakingSounds[zombie] <= time)
+		if (!g_Zombies[npc.Index].insidemap)
 		{
-			CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(zombie);
-			int iSequence = animationEntity.LookupSequence("throw_fire");
-			animationEntity.AddGestureSequence(iSequence);
+			int time = GetTime();
+			if (g_BreakingSounds[zombie] == -1 || g_BreakingSounds[zombie] != -1 && g_BreakingSounds[zombie] <= time)
+			{
+				CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(zombie);
+				int iSequence = animationEntity.LookupSequence("throw_fire");
+				animationEntity.AddGestureSequence(iSequence);
 
-			EmitGameSoundToAll("Breakable.Crate", entity);
-			TE_Particle("mvm_loot_smoke", fOrigin);
+				EmitGameSoundToAll("Breakable.Crate", entity);
+				TE_Particle("mvm_loot_smoke", fOrigin);
 
-			g_BreakingSounds[zombie] = time + 1;
+				g_BreakingSounds[zombie] = time + 1;
+			}
+
+			SetEntProp(entity, Prop_Data, "m_iHealth", health - 1);
+			npc.flRunSpeed = 0.0;
 		}
-
-		SetEntProp(entity, Prop_Data, "m_iHealth", health - 1);
-		npc.flRunSpeed = 0.0;
+		else
+		{
+			g_BreakingSounds[zombie] = -1;
+			npc.flRunSpeed = g_Zombies[npc.Index].speed;
+		}
 	}
 }
 
@@ -3583,6 +4126,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	if (!IsPlayerIndex(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
 		return Plugin_Continue;
 	
+	if (g_Player[client].forceattack)
+		buttons |= IN_ATTACK;
+	
 	float fCoordinates[3];
 	GetClientAbsOrigin(client, fCoordinates);
 
@@ -3599,22 +4145,28 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			if (GetClientTeam(client) != GetClientTeam(iOwner))
 				continue;
 			
-			if ((buttons & IN_ATTACK2) != IN_ATTACK2)
-			{
-				PrintSilentHint(client, "Hold 'attack2' to revive %N.", iOwner);
-				continue;
-			}
-			
 			int iHealth = GetEntProp(entity, Prop_Send, "m_iHealth");
 			int iMaxHealth = RoundFloat(float(175) * g_Difficulty[g_Match.difficulty].revive_multiplier); //GetEntProp(entity, Prop_Send, "m_iMaxHealth")
-
-			char sHint[128];
-			FormatEx(sHint, sizeof(sHint), "Reviving %N\n<", iOwner);
-
-			for (int i = 0; i < iMaxHealth / 2; i++)
-				Format(sHint, sizeof(sHint), "%s%s", sHint, (iHealth / 2) > i ? "/" : "|");
 			
-			PrintHintText(client, "%s>", sHint);
+			float time = GetGameTime();
+			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
+			{
+				if ((buttons & IN_ATTACK2) != IN_ATTACK2)
+				{
+					PrintSilentHint(client, "Hold 'attack2' to revive %N.", iOwner);
+					continue;
+				}
+
+				char sHint[128];
+				FormatEx(sHint, sizeof(sHint), "Reviving %N\n<", iOwner);
+
+				for (int i = 0; i < iMaxHealth / 4; i++)
+					Format(sHint, sizeof(sHint), "%s%s", sHint, (iHealth / 4) > i ? "/" : "|");
+				
+				PrintHintText(client, "%s>", sHint);
+
+				g_Player[client].delayhint = time + 0.1;
+			}
 
 			SetEntProp(entity, Prop_Send, "m_iHealth", iHealth + 1);
 			iHealth += g_Player[client].HasPerk("quickrevive") ? 2 : 1;
@@ -3654,6 +4206,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					TeleportEntity(iOwner, vecMarkerPos, NULL_VECTOR, NULL_VECTOR);
 					StripPlayer(iOwner);
 				}
+				delete TraceRay;
 
 				TFClassType class = view_as<TFClassType>(GetEntProp(entity, Prop_Send, "m_nBody") + 1);
 				TF2_SetPlayerClass(iOwner, class, true, true);
@@ -3670,9 +4223,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				TF2_GiveItem(iOwner, sClassname, g_Player[client].melee);
 
 				g_Player[iOwner].ApplyPerks();
-
 				g_Player[iOwner].revivemarker = INVALID_ENT_REFERENCE;
-				delete TraceRay;
 
 				PrintHintText(client, "%N has been respawned!", iOwner);
 			}
@@ -3910,8 +4461,10 @@ void OpenMainMenu(int client)
 	menu.SetTitle("[Gamemode] Undead Zombies");
 
 	menu.AddItem("info", "What is this gamemode?");
-	menu.AddItem("zombie", "Play as a Zombie");
-	menu.AddItem("difficulty", "Set the Difficulty", CheckCommandAccess(client, "", ADMFLAG_GENERIC, true) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
+	menu.AddItem("type", "What are the types of zombies?");
+	menu.AddItem("machines", "What do the Machines do?");
+	menu.AddItem("powerups", "What do the Powerups do?");
+	menu.AddItem("secret_box", "What does the Secret Box do?");
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -3927,13 +4480,14 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 
 			if (StrEqual(sInfo, "info", false))
 				OpenInfoPanel(param1);
-			else if (StrEqual(sInfo, "zombie", false))
-			{
-				SetAsZombie(param1, true);
-				OpenMainMenu(param1);
-			}
-			else if (StrEqual(sInfo, "difficulty", false))
-				OpenDifficultyMenu(param1, true);
+			else if (StrEqual(sInfo, "type", false))
+				OpenTypesPanel(param1);
+			else if (StrEqual(sInfo, "machines", false))
+				OpenMachinesPanel(param1);
+			else if (StrEqual(sInfo, "powerups", false))
+				OpenPowerupsPanel(param1);
+			else if (StrEqual(sInfo, "secret_box", false))
+				OpenSecretBoxPanel(param1);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -3964,7 +4518,125 @@ public int MenuHandler_Info(Menu menu, MenuAction action, int param1, int param2
 	{
 		case MenuAction_Select:
 		{
-			if (param2 == 0)
+			if (param2 == 1)
+				OpenMainMenu(param1);
+		}
+	}
+}
+
+void OpenTypesPanel(int client)
+{
+	Panel panel = new Panel();
+	panel.SetTitle("Types of Zombies");
+
+	char sDisplay[128];
+	for (int i = 0; i < g_TotalZombieTypes; i++)
+	{
+		FormatEx(sDisplay, sizeof(sDisplay), "%s\n - %s", g_ZombieTypes[i].name, g_ZombieTypes[i].description);
+		panel.DrawText(sDisplay);
+	}
+
+	panel.DrawItem("Back");
+	panel.DrawItem("Exit");
+
+	panel.Send(client, MenuHandler_Types, MENU_TIME_FOREVER);
+	delete panel;
+}
+
+public int MenuHandler_Types(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			if (param2 == 1)
+				OpenMainMenu(param1);
+		}
+	}
+}
+
+void OpenMachinesPanel(int client)
+{
+	Panel panel = new Panel();
+	panel.SetTitle("Types of Machines\nMachines allow for perks to be unlocked through points.");
+
+	char sDisplay[128];
+	for (int i = 0; i < g_TotalMachines; i++)
+	{
+		FormatEx(sDisplay, sizeof(sDisplay), "%s\n - %s", g_MachinesData[i].name, g_MachinesData[i].description);
+		panel.DrawText(sDisplay);
+	}
+
+	panel.DrawItem("Back");
+	panel.DrawItem("Exit");
+
+	panel.Send(client, MenuHandler_Machines, MENU_TIME_FOREVER);
+	delete panel;
+}
+
+public int MenuHandler_Machines(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			if (param2 == 1)
+				OpenMainMenu(param1);
+		}
+	}
+}
+
+void OpenPowerupsPanel(int client)
+{
+	Panel panel = new Panel();
+	panel.SetTitle("Types of Powerups\nPowerups give you perks and upgrades throughout the game as drops.");
+
+	char sDisplay[128];
+	for (int i = 0; i < g_TotalPowerups; i++)
+	{
+		FormatEx(sDisplay, sizeof(sDisplay), "%s\n - %s", g_Powerups[i].name, g_Powerups[i].description);
+		panel.DrawText(sDisplay);
+	}
+
+	panel.DrawItem("Back");
+	panel.DrawItem("Exit");
+
+	panel.Send(client, MenuHandler_Powerups, MENU_TIME_FOREVER);
+	delete panel;
+}
+
+public int MenuHandler_Powerups(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			if (param2 == 1)
+				OpenMainMenu(param1);
+		}
+	}
+}
+
+void OpenSecretBoxPanel(int client)
+{
+	Panel panel = new Panel();
+	panel.SetTitle("Secret Box");
+
+	panel.DrawText("Open the secret box to gain a random weapon you can pick up by interacting with it again.");
+	panel.DrawItem("Back");
+	panel.DrawItem("Exit");
+
+	panel.Send(client, MenuHandler_SecretBox, MENU_TIME_FOREVER);
+	delete panel;
+}
+
+public int MenuHandler_SecretBox(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			if (param2 == 1)
 				OpenMainMenu(param1);
 		}
 	}
@@ -3972,8 +4644,8 @@ public int MenuHandler_Info(Menu menu, MenuAction action, int param1, int param2
 
 void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false)
 {
-	CBaseNPC zombie;
-	if ((zombie = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
+	CBaseNPC npc;
+	if (entity > MaxClients && (npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
 		return;
 
 	float vecOrigin[3];
@@ -3990,16 +4662,17 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false)
 		EmitGameSoundToAll("Halloween.PumpkinDrop", entity);
 	}
 
-	if (powerups && GetRandomFloat(0.0, 100.0) <= 10.0 && g_Zombies[zombie.Index].spawnpowerups)
+	if (powerups && GetRandomFloat(0.0, 100.0) <= 25.0 && (entity <= MaxClients || entity > MaxClients && g_Zombies[npc.Index].insidemap))
 		SpawnPowerup(vecOrigin);
 
-	char sModel[PLATFORM_MAX_PATH];
-	GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
-		
-	CreateRagdoll(vecOrigin, vecAngles, sModel, zombie.nSkin, zombie.iTeamNum, sZombieAttachments[g_Zombies[zombie].g_Class]);
-	
-	zombie.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
-	AcceptEntityInput(entity, "Kill");
+	if (entity > MaxClients)
+	{
+		char sModel[PLATFORM_MAX_PATH];
+		GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
+		CreateRagdoll(vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].g_Class]);
+		npc.SetCollisionBounds(view_as<float>(view_as<float>({0.0, 180.0, 0.0})), view_as<float>(view_as<float>({0.0, 180.0, 0.0})));
+		AcceptEntityInput(entity, "Kill");
+	}
 }
 
 void CreateRagdoll(float origin[3], float angles[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0)
@@ -4028,23 +4701,23 @@ void CreateRagdoll(float origin[3], float angles[3], const char[] model, int ski
 
 		if (strlen(attachment) > 0)
 		{
-			int iItem = CreateEntityByName("prop_dynamic");
+			int attach = CreateEntityByName("prop_dynamic");
 
-			if (IsValidEntity(iItem))
+			if (IsValidEntity(attach))
 			{
-				DispatchKeyValue(iItem, "model", attachment);
-				DispatchKeyValueFloat(iItem, "modelscale", GetEntPropFloat(ragdoll, Prop_Send, "m_flModelScale"));
-				DispatchKeyValue(iItem, "TeamNum", sTeam);
-				DispatchSpawn(iItem);
+				DispatchKeyValue(attach, "model", attachment);
+				DispatchKeyValue(attach, "TeamNum", sTeam);
+				DispatchKeyValue(attach, "solid", "0");
+				DispatchSpawn(attach);
 
-				SetEntProp(iItem, Prop_Send, "m_nSkin", skin);
-				SetEntProp(iItem, Prop_Send, "m_fEffects", EF_BONEMERGE | EF_PARENT_ANIMATES);
+				SetEntProp(attach, Prop_Send, "m_nSkin", skin);
+				SetEntProp(attach, Prop_Send, "m_fEffects", EF_BONEMERGE | EF_PARENT_ANIMATES);
 
 				SetVariantString("!activator");
-				AcceptEntityInput(iItem, "SetParent", ragdoll);
+				AcceptEntityInput(attach, "SetParent", ragdoll);
 
 				SetVariantString("head");
-				AcceptEntityInput(iItem, "SetParentAttachmentMaintainOffset");
+				AcceptEntityInput(attach, "SetParentAttachmentMaintainOffset");
 			}
 		}
 
@@ -4238,7 +4911,14 @@ public Action Command_SetRound(int client, int args)
 		return Plugin_Handled;
 	}
 
-	g_Match.round = GetCmdArgInt(1);
+	int round = GetCmdArgInt(1);
+
+	if (round < 1)
+		round = 1;
+	else if (round >= 1000)
+		round = 1000;
+
+	g_Match.round = round;
 	CPrintToChat(client, "Round has been set to {haunted}%i{default}.", g_Match.round);
 	
 	if (g_Match.round >= 10)
@@ -4281,5 +4961,251 @@ void SetupSpecials()
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 400, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "tf2undead/noises/undead_giant_zombie_spawn.wav", "", "lava_fireball");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "", "rockettrail");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spymin", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "");
+}
+
+stock float[] PredictSubjectPosition(CBaseNPC npc, int subject)
+{
+	if (!g_Zombies[npc.Index].insidemap)
+		return NULL_VECTOR;
+	
+	float botPos[3];
+	GetEntPropVector(npc.GetEntity(), Prop_Data, "m_vecAbsOrigin", botPos);
+	
+	float subjectPos[3];
+	GetEntPropVector(subject, Prop_Data, "m_vecAbsOrigin", subjectPos);
+	
+	float to[3];
+	SubtractVectors(subjectPos, botPos, to);
+	to[2] = 0.0;
+	
+	float flRangeSq = GetVectorLength(to, true);
+	
+	// don't lead if subject is very far away
+	float flLeadRadiusSq = 500.0;
+	flLeadRadiusSq *= flLeadRadiusSq;
+	if (flRangeSq > flLeadRadiusSq)
+		return subjectPos;
+	
+	// Normalize in place
+	float range = SquareRoot(flRangeSq);
+	to[0] /= (range + 0.0001); // avoid divide by zero
+	to[1] /= (range + 0.0001); // avoid divide by zero
+	to[2] /= (range + 0.0001); // avoid divide by zero
+	
+	// estimate time to reach subject, assuming maximum speed
+	float leadTime = 0.5 + (range / (npc.flRunSpeed + 0.0001));
+	
+	// estimate amount to lead the subject
+	float SubjectAbsVelocity[3];
+	GetEntPropVector(subject, Prop_Data, "m_vecAbsVelocity", SubjectAbsVelocity);
+	float lead[3];
+	lead[0] = leadTime * SubjectAbsVelocity[0];
+	lead[1] = leadTime * SubjectAbsVelocity[1];
+	lead[2] = 0.0;
+	
+	if (GetVectorDotProduct(to, lead) < 0.0)
+	{
+		// the subject is moving towards us - only pay attention 
+		// to his perpendicular velocity for leading
+		float to2D[3]; to2D = to;
+		to2D[2] = 0.0;
+		NormalizeVector(to2D, to2D);
+		
+		float perp[2];
+		perp[0] = -to2D[1];
+		perp[1] = to2D[0];
+		
+		float enemyGroundSpeed = lead[0] * perp[0] + lead[1] * perp[1];
+		
+		lead[0] = enemyGroundSpeed * perp[0];
+		lead[1] = enemyGroundSpeed * perp[1];
+	}
+	
+	// compute our desired destination
+	float pathTarget[3];
+	AddVectors(subjectPos, lead, pathTarget);
+	
+	return pathTarget;
+}
+
+public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[PLATFORM_MAX_PATH],
+	  int &entity, int &channel, float &volume, int &level, int &pitch, int &flags,
+	  char soundEntry[PLATFORM_MAX_PATH], int &seed)
+{
+	//PrintToChatAll(sample);
+}
+
+int debugweapon = -1;
+int debugcurrent;
+
+public Action Command_DebugWeapons(int client, int args)
+{
+	if (IsValidEntity(debugweapon))
+		AcceptEntityInput(debugweapon, "Kill");
+		
+	debugweapon = CreateEntityByName("prop_dynamic");
+	debugcurrent = 0;
+
+	char sModel[PLATFORM_MAX_PATH];
+	TF2Items_GetItemKeyString(g_CustomWeapons[debugcurrent].name, "worldmodel", sModel, sizeof(sModel));
+
+	DispatchKeyValueVector(debugweapon, "origin", view_as<float>({1105.0, 71.0, 75.0}));
+	DispatchKeyValue(debugweapon, "model", sModel);
+	DispatchSpawn(debugweapon);
+
+	PrintToChat(client, "Weapon %i: %s", debugcurrent, g_CustomWeapons[debugcurrent].name);
+
+	return Plugin_Handled;
+}
+
+public Action Command_NextWeapons(int client, int args)
+{
+	debugcurrent++;
+
+	if (debugcurrent > g_TotalCustomWeapons)
+		debugcurrent = 0;
+	
+	char sModel[PLATFORM_MAX_PATH];
+	TF2Items_GetItemKeyString(g_CustomWeapons[debugcurrent].name, "worldmodel", sModel, sizeof(sModel));
+
+	SetEntityModel(debugweapon, sModel);
+
+	PrintToChat(client, "Weapon %i: %s", debugcurrent, g_CustomWeapons[debugcurrent].name);
+
+	return Plugin_Handled;
+}
+
+public Action Command_StopDebugWeapons(int client, int args)
+{
+	if (IsValidEntity(debugweapon))
+		AcceptEntityInput(debugweapon, "Kill");
+	
+	return Plugin_Handled;
+}
+
+int CalculateHealth(int entity)
+{
+	if (entity > 0 && entity <= MaxClients && !g_Player[entity].zombie)
+		return g_Player[entity].HasPerk("juggernog") ? 300 : 150;
+
+	CBaseNPC npc;
+	if (entity > MaxClients)
+		npc = TheNPCs.FindNPCByEntIndex(entity);
+
+	int special = (entity > 0 && entity <= MaxClients) ? g_Player[entity].type : g_Zombies[npc.Index].type;
+
+	if (special == -1)
+		special = GetZombieTypeByName("Common");
+	
+	int basehealth = g_ZombieTypes[special].health;
+
+	if (basehealth == -1)
+	{
+		int class = (entity > 0 && entity <= MaxClients) ? view_as<int>(TF2_GetPlayerClass(entity)) : g_Zombies[npc.Index].class;
+
+		if (class == view_as<int>(TFClass_Heavy))
+			basehealth = 250;
+		else if (class == view_as<int>(TFClass_Soldier))
+			basehealth = 200;
+		else
+			basehealth = 150;
+	}
+
+	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
+	return (basehealth + (g_Match.round * 2));
+}
+
+public Action Command_TestAnim(int client, int args)
+{
+	ActivateAnimation(client, "packapunch", GetActiveWeapon(client));
+	return Plugin_Handled;
+}
+
+void ActivateAnimation(int client, const char[] animation, int weapon = -1)
+{
+	if (StrEqual(animation, "packapunch", false) && IsValidEntity(weapon))
+	{
+		int punch = -1; int entity = -1;
+		while ((entity = FindEntityByClassname(entity, "*")) != -1)
+			if (entity > 0 && g_Machines[entity].index == GetMachine("packapunch"))
+				punch = entity;
+		
+		int propweapon = -1;
+		if (IsValidEntity(punch))
+		{ 
+			float origin[3];
+			GetEntityOrigin(punch, origin);
+
+			int index = g_WeaponIndex[weapon];
+
+			char sModel[PLATFORM_MAX_PATH];
+			TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
+			
+			propweapon = CreateEntityByName("prop_dynamic");
+			origin[0] += 10.0;
+			origin[1] += -20.0;
+			origin[2] += 85.0;
+			DispatchKeyValueVector(propweapon, "origin", origin);
+			DispatchKeyValueVector(propweapon, "angles", g_CustomWeapons[index].offset_angles);
+			DispatchKeyValue(propweapon, "model", sModel);
+			DispatchSpawn(propweapon);
+
+			TF2_CreateGlow("propweaponcolor", propweapon, view_as<int>({255, 200, 200, 150}));
+
+			AcceptEntityInput(g_Machines[punch].glow, "Disable");
+		}
+
+		EquipWeaponSlot(client, 2);
+		TF2_AddCondition(client, TFCond_FreezeInput);
+
+		SetVariantInt(1);
+		AcceptEntityInput(client, "SetForcedTauntCam");
+
+		SetClientViewEntity(client, propweapon);
+		SetEntityMoveType(client, MOVETYPE_OBSERVER);
+
+		EmitSoundToAll("misc/doomsday_cap_open.wav", client);
+
+		StopTimer(g_Player[client].punchanim);
+		DataPack pack;
+		g_Player[client].punchanim = CreateDataTimer(5.0, Timer_InitPackaPunch, pack);
+		pack.WriteCell(client);
+		pack.WriteCell(weapon);
+		pack.WriteCell(punch);
+		pack.WriteCell(propweapon);
+	}
+}
+
+public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
+{
+	pack.Reset();
+
+	int client = pack.ReadCell();
+	int weapon = pack.ReadCell();
+	int punch = pack.ReadCell();
+	int propweapon = pack.ReadCell();
+
+	g_Player[client].punchanim = null;
+	
+	if (IsClientInGame(client) && IsPlayerAlive(client))
+	{
+		EquipWeapon(client, weapon);
+		TF2_RemoveCondition(client, TFCond_FreezeInput);
+
+		SetVariantInt(0);
+		AcceptEntityInput(client, "SetForcedTauntCam");
+	}
+
+	if (IsValidEntity(propweapon))
+		AcceptEntityInput(propweapon, "Kill");
+	
+	AcceptEntityInput(g_Machines[punch].glow, "Enable");
+
+	SetClientViewEntity(client, client);
+	SetEntityMoveType(client, MOVETYPE_WALK);
+	SetEntProp(client, Prop_Send, "m_iObserverMode", 0);
+	
+	return Plugin_Stop;
 }

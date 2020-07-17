@@ -634,6 +634,14 @@ methodmap CBaseNPC __nullable__
 	{
 		SDKHook(this.GetEntity(), SDKHook_OnTakeDamageAlivePost, callback);
 	}
+	public void SetOnTraceAttackFunction(SDKHookCB callback)
+	{
+		SDKHook(this.GetEntity(), SDKHook_TraceAttack, callback);
+	}
+	public void SetOnTraceAttackPostFunction(SDKHookCB callback)
+	{
+		SDKHook(this.GetEntity(), SDKHook_TraceAttackPost, callback);
+	}
 	
 	public native int EquipItem(const char[] attachment, const char[] model, const char[] anim = "", int skin = 0);
 	
@@ -679,6 +687,11 @@ methodmap CBaseNPC __nullable__
 	{
 		public get() { return GetEntProp(this.GetEntity(), Prop_Data, "m_nSkin"); }
 		public set(int skin) { SetEntProp(this.GetEntity(), Prop_Data, "m_nSkin", skin); }
+	}
+	property float nSize
+	{
+		public get() { return GetEntPropFloat(this.GetEntity(), Prop_Data, "m_flModelScale"); }
+		public set(float size) { SetEntPropFloat(this.GetEntity(), Prop_Data, "m_flModelScale", size); }
 	}
 	property float flStepSize
 	{
