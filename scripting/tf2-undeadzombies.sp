@@ -2688,7 +2688,6 @@ void OnEngiZombieTick(int entity)
 		if (GetVectorDistance(origin, targetorigin) >= 500.0)
 			continue;
 
-		//SetEntityHealth(i, GetClientHealth(i) + 2);
 		TF2_AddPlayerHealth(i, 2, 1.0, true, true, -1);
 	}
 }
@@ -2748,7 +2747,7 @@ public void OnZombieThink(int entity)
 		g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
 	else if (g_Zombies[npc.Index].lastattack <= GetGameTime())
 	{
-		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, 0.7);
+		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX);
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
 		
 		float damage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier;
@@ -4565,7 +4564,7 @@ void OnPlankTick(int entity)
 	int zombie = -1;
 	while ((zombie = FindEntityByClassname(zombie, "base_boss")) != -1)
 	{
-		if (GetEntitiesDistance(entity, zombie) > 125.0)
+		if (!IsEntVisibleTo(zombie, entity, 250.0))
 			continue;
 
 		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(zombie);
@@ -4959,19 +4958,19 @@ public void TF2_OnRegeneratePlayerPost(int client)
 	StripPlayer(client);
 }
 
-bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePosition = true, float z_axis = 0.0, float tolerance = 75.0)
+bool IsVisibleTo(int client, int target, float maxdistance = 0.0, bool FromEyePosition = true, float z_axis = 0.0, float tolerance = 75.0)
 {
-	if (client < 1 || client > MaxClients || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(entity))
+	if (client < 1 || client > MaxClients || !IsClientInGame(client) || !IsPlayerAlive(client) || !IsValidEntity(target))
 		return false;
 	 
 	float vOrigin[3];
 	FromEyePosition ? GetClientEyePosition(client, vOrigin) : GetClientAbsOrigin(client, vOrigin);
 	
 	float vEnt[3];
-	if (HasEntProp(entity, Prop_Send, "m_vecAbsOrigin"))
-		GetEntPropVector(entity, Prop_Send, "m_vecAbsOrigin", vEnt);
+	if (HasEntProp(target, Prop_Send, "m_vecAbsOrigin"))
+		GetEntPropVector(target, Prop_Send, "m_vecAbsOrigin", vEnt);
 	else
-		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vEnt);
+		GetEntPropVector(target, Prop_Send, "m_vecOrigin", vEnt);
 	
 	vEnt[2] += z_axis;
 
@@ -4986,7 +4985,7 @@ bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePo
 	float vAngles[3];
 	GetVectorAngles(vLookAt, vAngles);
 	
-	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceFilter, entity);
+	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceFilter, target);
 	
 	bool isVisible;
 	if (TR_DidHit(trace))
@@ -5004,7 +5003,71 @@ bool IsVisibleTo(int client, int entity, float maxdistance = 0.0, bool FromEyePo
 	return isVisible;
 }
 
+bool IsEntVisibleTo(int entity, int target, float maxdistance = 0.0, float z_axis = 0.0, float tolerance = 75.0)
+{
+	if (entity <= MaxClients || !IsValidEntity(entity) || !IsValidEntity(target))
+		return false;
+	 
+	float vOrigin[3];
+	if (HasEntProp(entity, Prop_Send, "m_vecAbsOrigin"))
+		GetEntPropVector(entity, Prop_Send, "m_vecAbsOrigin", vOrigin);
+	else
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vOrigin);
+	
+	float vEnt[3];
+	if (HasEntProp(target, Prop_Send, "m_vecAbsOrigin"))
+		GetEntPropVector(target, Prop_Send, "m_vecAbsOrigin", vEnt);
+	else
+		GetEntPropVector(target, Prop_Send, "m_vecOrigin", vEnt);
+	
+	vOrigin[2] += 50.0;
+	vEnt[2] += z_axis;
+	
+	if (maxdistance > 0.0 && GetVectorDistance(vOrigin, vEnt) > maxdistance)
+		return false;
+	
+	float vLookAt[3];
+	MakeVectorFromPoints(vOrigin, vEnt, vLookAt);
+	
+	float vAngles[3];
+	GetVectorAngles(vLookAt, vAngles);
+	
+	Handle trace = TR_TraceRayFilterEx(vOrigin, vAngles, MASK_SHOT, RayType_Infinite, TraceFilter2, target);
+	
+	bool isVisible;
+	if (TR_DidHit(trace))
+	{
+		float vStart[3];
+		TR_GetEndPosition(vStart, trace);
+		
+		if ((GetVectorDistance(vOrigin, vStart, false) + tolerance) >= GetVectorDistance(vOrigin, vEnt))
+			isVisible = true;
+	}
+	else
+		isVisible = true;
+	
+	/*if (isVisible)
+	{
+		CreatePointGlow(vOrigin);
+		CreatePointGlow(vEnt);
+	}*/
+	
+	delete trace;
+	return isVisible;
+}
+
 public bool TraceFilter(int entity, int contentsMask, any data)
+{
+	if (entity == 0)
+		return true;
+	
+	if (entity <= MaxClients || !IsValidEntity(entity) || entity == data)
+		return false;
+	
+	return true;
+}
+
+public bool TraceFilter2(int entity, int contentsMask, any data)
 {
 	if (entity == 0)
 		return true;
