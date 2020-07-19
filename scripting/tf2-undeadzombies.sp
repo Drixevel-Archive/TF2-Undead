@@ -23,7 +23,7 @@
 //Defines
 #define PLUGIN_NAME "[TF2] Undead Zombies"
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
-#define PLUGIN_VERSION "1.0.4"
+#define PLUGIN_VERSION "1.0.5"
 
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
@@ -2217,23 +2217,50 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 	
 	TF2_SetPlayerClass(client, view_as<TFClassType>(class), false, false);
 
-	if (g_ZombieTypes[special].size != -1.0)
+	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
-		SetEntPropFloat(client, Prop_Send, "m_flModelScale", g_ZombieTypes[special].size);
-		SetEntPropFloat(client, Prop_Send, "m_flStepSize", 18.0 * g_ZombieTypes[special].size);
+		float size = GetRandomFloat(0.8, 1.2);
+		SetEntPropFloat(client, Prop_Send, "m_flModelScale", size);
+		SetEntPropFloat(client, Prop_Send, "m_flStepSize", 18.0 * size);
+
+		int color[3];
+		color[0] = GetRandomInt(0, 255);
+		color[1] = GetRandomInt(0, 255);
+		color[1] = GetRandomInt(0, 255);
+
+		SetEntityRenderMode(client, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(client, color[0], color[1], color[2], 255);
+
+		int wearable = -1;
+		while ((wearable = FindEntityByClassname(wearable, "tf_wearable*")) != -1)
+		{
+			if (GetEntPropEnt(wearable, Prop_Send, "m_hOwnerEntity") != client)
+				continue;
+			
+			SetEntityRenderMode(wearable, RENDER_TRANSCOLOR);
+			SetEntityRenderColor(wearable, color[0], color[1], color[2], 255);
+		}
 	}
-
-	SetEntityRenderMode(client, RENDER_TRANSCOLOR);
-	SetEntityRenderColor(client, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
-
-	int wearable = -1;
-	while ((wearable = FindEntityByClassname(wearable, "tf_wearable*")) != -1)
+	else
 	{
-		if (GetEntPropEnt(wearable, Prop_Send, "m_hOwnerEntity") != client)
-			continue;
-		
-		SetEntityRenderMode(wearable, RENDER_TRANSCOLOR);
-		SetEntityRenderColor(wearable, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
+		if (g_ZombieTypes[special].size != -1.0)
+		{
+			SetEntPropFloat(client, Prop_Send, "m_flModelScale", g_ZombieTypes[special].size);
+			SetEntPropFloat(client, Prop_Send, "m_flStepSize", 18.0 * g_ZombieTypes[special].size);
+		}
+
+		SetEntityRenderMode(client, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(client, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
+
+		int wearable = -1;
+		while ((wearable = FindEntityByClassname(wearable, "tf_wearable*")) != -1)
+		{
+			if (GetEntPropEnt(wearable, Prop_Send, "m_hOwnerEntity") != client)
+				continue;
+			
+			SetEntityRenderMode(wearable, RENDER_TRANSCOLOR);
+			SetEntityRenderColor(wearable, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
+		}
 	}
 
 	float speed = g_ZombieTypes[special].speed;
@@ -2259,7 +2286,7 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 	
 	if (strlen(g_ZombieTypes[special].particle) > 0)
 		AttachParticle(client, g_ZombieTypes[special].particle, 0.0, "flag");
-	
+
 	if (special == GetZombieTypeByName("Strapped Engis"))
 	{
 		int dispenser = CreateEntityByName("obj_dispenser");
@@ -2332,14 +2359,11 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.SetOnTakeDamageAliveFunction(OnZombieDamaged);
 	npc.SetOnTakeDamageAlivePostFunction(OnZombieDamagedPost);
 	
-	if (!g_Match.spawn_robots)
+	int item = -1;
+	if (!g_Match.spawn_robots && (item = npc.EquipItem("head", sZombieAttachments[class])) != -1)
 	{
-		int item = -1;
-		if ((item = npc.EquipItem("head", sZombieAttachments[class])) != -1)
-		{
-			SetEntityRenderMode(item, RENDER_TRANSCOLOR);
-			SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
-		}
+		SetEntityRenderMode(item, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
 	}
 	
 	int entity = npc.GetEntity();
@@ -2369,23 +2393,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.flJumpHeight = 85.0;
 	npc.flDeathDropHeight = 2000.0;
 
-	if (npc.nSize != -1.0)
-	{
-		float vecMins[3];
-		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
-
-		float vecMaxs[3];
-		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
-		
-		vecMins[0] /= npc.nSize;
-		vecMins[1] /= npc.nSize;
-		vecMins[2] /= npc.nSize;
-		vecMaxs[0] *= npc.nSize;
-		vecMaxs[1] *= npc.nSize;
-		vecMaxs[2] *= npc.nSize;
-
-		npc.SetCollisionBounds(vecMins, vecMaxs);
-	}
+	FixZombieCollisions(npc);
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
@@ -2433,7 +2441,26 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	if (strlen(g_ZombieTypes[special].particle) > 0)
 		AttachParticle(entity, g_ZombieTypes[special].particle, 0.0, "flag");
 	
-	if (special == GetZombieTypeByName("Strapped Engis"))
+	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
+	{
+		npc.nSize = GetRandomFloat(0.8, 1.2);
+		FixZombieCollisions(npc);
+
+		int color[3];
+		color[0] = GetRandomInt(0, 255);
+		color[1] = GetRandomInt(0, 255);
+		color[1] = GetRandomInt(0, 255);
+
+		SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(entity, color[0], color[1], color[2], 255);
+
+		if (IsValidEntity(item))
+		{
+			SetEntityRenderMode(item, RENDER_TRANSCOLOR);
+			SetEntityRenderColor(item, color[0], color[1], color[2], 255);
+		}
+	}
+	else if (special == GetZombieTypeByName("Strapped Engis"))
 	{
 		int dispenser = CreateEntityByName("obj_dispenser");
 		
@@ -2467,6 +2494,27 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	}
 
 	return npc;
+}
+
+void FixZombieCollisions(CBaseNPC npc)
+{
+	if (npc != INVALID_NPC && npc.nSize != -1.0)
+	{
+		float vecMins[3];
+		GetEntPropVector(npc.GetEntity(), Prop_Send, "m_vecMins", vecMins);
+
+		float vecMaxs[3];
+		GetEntPropVector(npc.GetEntity(), Prop_Send, "m_vecMaxs", vecMaxs);
+		
+		vecMins[0] /= npc.nSize;
+		vecMins[1] /= npc.nSize;
+		vecMins[2] /= npc.nSize;
+		vecMaxs[0] *= npc.nSize;
+		vecMaxs[1] *= npc.nSize;
+		vecMaxs[2] *= npc.nSize;
+
+		npc.SetCollisionBounds(vecMins, vecMaxs);
+	}
 }
 
 int GetZombieTypeByName(const char[] name)
