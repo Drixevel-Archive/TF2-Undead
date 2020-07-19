@@ -2351,7 +2351,8 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 	
 	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
 
-	if (speed) { }
+	TF2Attrib_SetByName(client, "move speed bonus", speed);
+	TF2_AddCondition(client, TFCond_SpeedBuffAlly, 0.0);
 
 	SetEntityHealth(client, CalculateHealth(client));
 
