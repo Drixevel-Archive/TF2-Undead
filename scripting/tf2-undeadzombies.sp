@@ -115,6 +115,9 @@ int g_GlowSprite;
 Database g_Database;
 int g_GlobalTarget = -1;
 
+ArrayList statistics;
+StringMap statisticsnames;
+
 char sModels[10][PLATFORM_MAX_PATH] =
 {
 	"",
@@ -186,6 +189,25 @@ char sHints[17][128] =
 	"The powerup 'Nuke' allows you to instantly nuke all zombies into oblivion... until they come back.",
 	"The powerup 'Max Ammo' allows you to refill all your weapons mags and ammunition.",
 };
+
+//Statistics
+int g_TotalStatistics;
+enum struct Statistics
+{
+	char name[64];
+	char display[128];
+	char table[64];
+
+	void CreateStatistic(const char[] name, const char[] display, const char[] table)
+	{
+		strcopy(this.name, 64, name);
+		strcopy(this.display, 128, display);
+		strcopy(this.table, 64, table);
+		g_TotalStatistics++;
+	}
+}
+
+Statistics g_Statistics[32];
 
 //Difficulty Data
 int g_TotalDifficulties;
@@ -434,14 +456,14 @@ enum struct Player
 		delete this.stats;
 	}
 
-	any GetStat(const char[] stat)
+	int GetStat(const char[] stat)
 	{
-		any value;
+		int value;
 		this.stats.GetValue(stat, value);
 		return value;
 	}
 
-	bool SetStat(const char[] stat, any value)
+	bool SetStat(const char[] stat, int value)
 	{
 		if (this.stats == null)
 			this.stats = new StringMap();
@@ -449,12 +471,12 @@ enum struct Player
 		this.stats.SetValue(stat, value);
 	}
 
-	bool AddStat(const char[] stat, any value)
+	bool AddStat(const char[] stat, int value)
 	{
 		if (this.stats == null)
 			this.stats = new StringMap();
 		
-		any base;
+		int base;
 		this.stats.GetValue(stat, base);
 		
 		this.stats.SetValue(stat, (base + value));
@@ -990,6 +1012,59 @@ public void OnPluginStart()
 
 	g_Sync_NearInteractable = new Hud();
 
+	statistics = new ArrayList(ByteCountToCells(128));
+	statistics.PushString(STAT_KILLS);
+	statistics.PushString(STAT_DEATHS);
+	statistics.PushString(STAT_REVIVES);
+	statistics.PushString(STAT_MACHINES);
+	statistics.PushString(STAT_WEAPONS);
+	statistics.PushString(STAT_SECRETBOXES);
+	statistics.PushString(STAT_PLANKS);
+	statistics.PushString(STAT_BUILDINGS);
+	statistics.PushString(STAT_GAINED);
+	statistics.PushString(STAT_SPENT);
+	statistics.PushString(STAT_DAMAGE);
+	statistics.PushString(STAT_WAVES);
+	statistics.PushString(STAT_SPECIALS);
+	statistics.PushString(STAT_REVIVED);
+	statistics.PushString(STAT_POWERUP);
+	statistics.PushString(STAT_TEAMMATES);
+
+	statisticsnames = new StringMap();
+	statisticsnames.SetString(STAT_KILLS, "Total Kills");
+	statisticsnames.SetString(STAT_DEATHS, "Total Deaths");
+	statisticsnames.SetString(STAT_REVIVES, "Revives Done");
+	statisticsnames.SetString(STAT_MACHINES, "Machines Unlocked");
+	statisticsnames.SetString(STAT_WEAPONS, "Weapons Picked Up");
+	statisticsnames.SetString(STAT_SECRETBOXES, "Secret Box Openings");
+	statisticsnames.SetString(STAT_PLANKS, "Planks Rebuilt");
+	statisticsnames.SetString(STAT_BUILDINGS, "Buildings Unlocked");
+	statisticsnames.SetString(STAT_GAINED, "Points Gained Total");
+	statisticsnames.SetString(STAT_SPENT, "Points Spent Total");
+	statisticsnames.SetString(STAT_DAMAGE, "Damage Dealt to Enemies");
+	statisticsnames.SetString(STAT_WAVES, "Waves Survived");
+	statisticsnames.SetString(STAT_SPECIALS, "Special Zombies Killed");
+	statisticsnames.SetString(STAT_REVIVED, "Revived By Teammates");
+	statisticsnames.SetString(STAT_POWERUP, "Powerups Received");
+	statisticsnames.SetString(STAT_TEAMMATES, "Teammates Gained");
+
+	g_Statistics[g_TotalStatistics].CreateStatistic("Kills", "Total Kills", "kills");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Deaths", "Total Deaths", "deaths");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Revives", "Revives Done", "revives");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Machines Bought", "Machines Unlocked", "machines_bought");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Weapons Bought", "Weapons Picked Up", "weapons_bought");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Secretboxes Bought", "Secret Box Openings", "secretboxes_opened");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Planks Rebuilt", "Planks Rebuilt", "planks_rebuilt");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Buildings Rented", "Buildings Unlocked", "buildings_rented");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Points Gained", "Points Gained Total", "points_gained");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Points Spent", "Points Spent Total", "points_spent");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Damage", "Damage Dealt to Enemies", "damage");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Waves Won", "Waves Survived", "waves_won");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Specials Killed", "Special Zombies Killed", "specials_killed");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Revived", "Revived By Teammates", "revived");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Powerups Pickedup", "Powerups Received", "powerups_pickedup");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Total Teammates", "Teammates Gained", "total_teammates");
+
 	for (int i = 0; i < MAX_NPCS; i++)
 		g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
 	
@@ -1058,7 +1133,7 @@ public void OnSQLConnect(Database db, const char[] error, any data)
 	g_Database = db;
 	LogMessage("Connected to database successfully.");
 
-	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `secretboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
+	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `server` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `secretboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
 }
 
 public void OnCreateTable(Database db, DBResultSet results, const char[] error, any data)
@@ -1841,6 +1916,9 @@ void SaveStatistics()
 	if (g_Database == null)
 		return;
 	
+	char sServerIP[64];
+	GetServerIP(sServerIP, sizeof(sServerIP), true);
+	
 	char sQuery[1024]; char sSteamID[64];
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -1850,7 +1928,7 @@ void SaveStatistics()
 		if (!GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
 			continue;
 
-		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, secretboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates) VALUES ('%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_SECRETBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), RoundFloat(g_Player[i].GetStat(STAT_DAMAGE)), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES));
+		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, server, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, secretboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates) VALUES ('%s', '%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, sServerIP, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_SECRETBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), g_Player[i].GetStat(STAT_DAMAGE), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES));
 		g_Database.Query(OnSaveStats, sQuery);
 
 		g_Player[i].ResetStats();
@@ -3298,7 +3376,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 public void OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], float damagePosition[3], int damagecustom)
 {
 	if (IsPlayerIndex(attacker))
-		g_Player[attacker].AddStat(STAT_DAMAGE, damage);
+		g_Player[attacker].AddStat(STAT_DAMAGE, RoundFloat(damage));
 
 	if (GetClientTeam(victim) != TEAM_ZOMBIES)
 		return;
@@ -4973,6 +5051,7 @@ void OpenMainMenu(int client)
 	Menu menu = new Menu(MenuHandler_Main);
 	menu.SetTitle("[Gamemode] Undead Zombies");
 
+	menu.AddItem("statistics", "Your Undead Statistics");
 	menu.AddItem("info", "What is this gamemode?");
 	menu.AddItem("type", "What are the types of zombies?");
 	menu.AddItem("machines", "What do the Machines do?");
@@ -4991,7 +5070,9 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 			char sInfo[32];
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
-			if (StrEqual(sInfo, "info", false))
+			if (StrEqual(sInfo, "statistics", false))
+				OpenStatisticsMenu(param1, true);
+			else if (StrEqual(sInfo, "info", false))
 				OpenInfoPanel(param1);
 			else if (StrEqual(sInfo, "type", false))
 				OpenTypesPanel(param1);
@@ -5790,7 +5871,7 @@ public Action Command_Statistics(int client, int args)
 	return Plugin_Handled;
 }
 
-void OpenStatisticsMenu(int client)
+void OpenStatisticsMenu(int client, bool back = false)
 {
 	Menu menu = new Menu(MenuHandler_Statistics);
 	menu.SetTitle("Undead Statistics");
@@ -5799,6 +5880,7 @@ void OpenStatisticsMenu(int client)
 	menu.AddItem("server", "Server Statistics");
 	menu.AddItem("session", "Session Statistics");
 
+	menu.ExitBackButton = back;
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -5818,6 +5900,9 @@ public int MenuHandler_Statistics(Menu menu, MenuAction action, int param1, int 
 			else if (StrEqual(sInfo, "session"))
 				ShowSessionStatistics(param1);
 		}
+		case MenuAction_Cancel:
+			if (param2 == MenuCancel_ExitBack)
+				OpenMainMenu(param1);
 		case MenuAction_End:
 			delete menu;
 	}
@@ -5830,15 +5915,22 @@ void ShowGlobalStatistics(int client)
 		return;
 	
 	char sQuery[512];
-	g_Database.Format(sQuery, sizeof(sQuery), "SELECT * FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
-	g_Database.Query(OnParseStatistics, sQuery, GetClientUserId(client));
-
-	OpenStatisticsMenu(client);
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates) FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
+	g_Database.Query(OnParseGlobalStatistics, sQuery, GetClientUserId(client));
 }
 
 void ShowServerStatistics(int client)
 {
-	OpenStatisticsMenu(client);
+	char sSteamID[64];
+	if (!GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
+		return;
+	
+	char sServerIP[64];
+	GetServerIP(sServerIP, sizeof(sServerIP), true);
+	
+	char sQuery[512];
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates) FROM `undead_statistics` WHERE steamid = '%s' ANd server = '%s';", sSteamID, sServerIP);
+	g_Database.Query(OnParseServerStatistics, sQuery, GetClientUserId(client));
 }
 
 void ShowSessionStatistics(int client)
@@ -5846,10 +5938,54 @@ void ShowSessionStatistics(int client)
 	GenerateStatisticsPanel(client, "Session", g_Player[client].stats);
 }
 
-public void OnParseStatistics(Database db, DBResultSet results, const char[] error, any data)
+public void OnParseGlobalStatistics(Database db, DBResultSet results, const char[] error, any data)
 {
 	if (results == null)
 		ThrowError("Error while parsing statistics: %s", error);
+	
+	int client;
+	if ((client = GetClientOfUserId(data)) == 0)
+		return;
+	
+	StringMap stats = new StringMap();
+
+	if (results.FetchRow())
+	{
+		char stat[64];
+		for (int i = 0; i < statistics.Length; i++)
+		{
+			statistics.GetString(i, stat, sizeof(stat));
+			stats.SetValue(stat, results.FetchInt(i));
+		}
+	}
+
+	GenerateStatisticsPanel(client, "Global", stats);
+	delete stats;
+}
+
+public void OnParseServerStatistics(Database db, DBResultSet results, const char[] error, any data)
+{
+	if (results == null)
+		ThrowError("Error while parsing statistics: %s", error);
+	
+	int client;
+	if ((client = GetClientOfUserId(data)) == 0)
+		return;
+	
+	StringMap stats = new StringMap();
+
+	if (results.FetchRow())
+	{
+		char stat[64];
+		for (int i = 0; i < statistics.Length; i++)
+		{
+			statistics.GetString(i, stat, sizeof(stat));
+			stats.SetValue(stat, results.FetchInt(i));
+		}
+	}
+
+	GenerateStatisticsPanel(client, "Server", stats);
+	delete stats;
 }
 
 void GenerateStatisticsPanel(int client, const char[] title, StringMap stats)
@@ -5857,34 +5993,33 @@ void GenerateStatisticsPanel(int client, const char[] title, StringMap stats)
 	Panel panel = new Panel();
 
 	char description[64];
-	if (StrEqual(title, "session", false))
+	if (StrEqual(title, "global", false))
+		FormatEx(description, sizeof(description), "These are your global statistics from every server.");
+	else if (StrEqual(title, "server", false))
+		FormatEx(description, sizeof(description), "These are your statistics for this server.");
+	else if (StrEqual(title, "session", false))
 		FormatEx(description, sizeof(description), "These are your statistics this round.");
 
 	char sTitle[128];
 	FormatEx(sTitle, sizeof(sTitle), "Undead Statistics - %s\n - %s", title, description);
 	panel.SetTitle(sTitle);
-
-	StringMapSnapshot snap = stats.Snapshot();
-
-	char sText[128];
-	for (int i = 0; i < snap.Length; i++)
+	
+	char statistic[128]; char display[128]; char sText[128];
+	for (int i = 0; i < statistics.Length; i++)
 	{
-		int size = snap.KeyBufferSize(i);
+		statistics.GetString(i, statistic, sizeof(statistic));
 
-		char[] sKey = new char[size];
-		snap.GetKey(i, sKey, size);
+		int value;
+		stats.GetValue(statistic, value);
 
-		any value;
-		stats.GetValue(sKey, value);
-
-		FormatEx(sText, sizeof(sText), "%s : %i", sKey, value);
+		statisticsnames.GetString(statistic, display, sizeof(display));
+		FormatEx(sText, sizeof(sText), "%s - %i", display, value);
 		panel.DrawText(sText);
 	}
 
 	panel.DrawItem("Back");
 	panel.DrawItem("Exit");
 
-	delete snap;
 	panel.Send(client, MenuAction_Statistics, MENU_TIME_FOREVER);
 	delete panel;
 }
