@@ -1,17 +1,8 @@
 /*
-- Zombies not taking damage
 - Zombies inside each other walking in the same path
 - Zombies stuck in the standing animation
-- Sometimes can't walk into where a zombie once was
-- I can repair the planks from a floor above where the window is
-- I can repair the planks while dead
 - Max Ammo sometimes doesn't refill any ammo
 - Max Ammo doesn't refill any ammo on completely drained weapons
-- Immense lag when there are a lot of zombies
-- I can get stuck in a plank while repairing them
-- No zombies spawning after a player joins spectator; upon joining back will fix
-- Zombies go invisible and are stuck sometimes instead of dying
-- Game told me how to revive myself after I was revived
 */
 
 /*****************************/
@@ -171,8 +162,8 @@ char sBloodParticles[5][64] =
 
 char sHints[17][128] =
 {
-	"Revive your teammates by holding alt-fire near their revive markers.",
-	"Interact with weapons, machines and the secret weapons chest by pressing 'MEDIC!' near them.",
+	"Revive your teammates by standing near their revive markers.",
+	"Interact with weapons, machines, buildings and the secret weapons chest by pressing 'MEDIC!' near them.",
 	"Powerups sometimes drop when you kill zombies, pick them up to receive perks.",
 	"Walk up to planks and press 'MEDIC!' to rebuild planks and gain points.",
 	"Gain 10 points by hurting zombies and 100 points by killing zombies.",
@@ -1048,6 +1039,7 @@ public void OnPluginStart()
 	statisticsnames.SetString(STAT_POWERUP, "Powerups Received");
 	statisticsnames.SetString(STAT_TEAMMATES, "Teammates Gained");
 
+	//TODO: Use this instead.
 	g_Statistics[g_TotalStatistics].CreateStatistic("Kills", "Total Kills", "kills");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Deaths", "Total Deaths", "deaths");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Revives", "Revives Done", "revives");
@@ -4761,7 +4753,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		float fOrigin[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
 
-		if (GetVectorDistance(fCoordinates, fOrigin) <= 50.0)
+		if (GetVectorDistance(fCoordinates, fOrigin) <= 75.0)
 		{
 			int iOwner = GetEntPropEnt(entity, Prop_Send, "m_hOwner");
 
@@ -4769,17 +4761,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				continue;
 			
 			int iHealth = GetEntProp(entity, Prop_Send, "m_iHealth");
-			int iMaxHealth = RoundFloat(float(175) * g_Difficulty[g_Match.difficulty].revive_multiplier); //GetEntProp(entity, Prop_Send, "m_iMaxHealth")
+			int iMaxHealth = RoundFloat(float(175) * g_Difficulty[g_Match.difficulty].revive_multiplier);
 			
 			float time = GetGameTime();
 			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
 			{
-				if ((buttons & IN_ATTACK2) != IN_ATTACK2)
-				{
-					PrintSilentHint(client, "Hold 'attack2' to revive %N.", iOwner);
-					continue;
-				}
-
 				char sHint[128];
 				FormatEx(sHint, sizeof(sHint), "Reviving %N\n<", iOwner);
 
