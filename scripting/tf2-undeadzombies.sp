@@ -45,8 +45,8 @@
 
 #define ZOMBIE_DEFAULT "Common"
 
-#define ZOMBIE_WAVE_TIMER_MIN 15
-#define ZOMBIE_WAVE_TIMER_MAX 25
+#define ZOMBIE_WAVE_TIMER_MIN 15.0
+#define ZOMBIE_WAVE_TIMER_MAX 25.0
 
 #define ZOMBIE_HIT_DISTANCE 75.0
 #define ZOMBIE_FACE_DISTANCE 250.0
@@ -997,6 +997,8 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_synclobby", Command_SyncLobby, ADMFLAG_GENERIC);
 
+	RegAdminCmd("sm_disableeastereggs", Command_DisableEasterEggs, ADMFLAG_GENERIC);
+
 	RegAdminCmd("sm_debugweapons", Command_DebugWeapons, ADMFLAG_ROOT);
 	RegAdminCmd("sm_nextweapon", Command_NextWeapons, ADMFLAG_ROOT);
 	RegAdminCmd("sm_stopdebugweapons", Command_StopDebugWeapons, ADMFLAG_ROOT);
@@ -1071,12 +1073,12 @@ public void OnPluginStart()
 	movespeed_multipler
 	max_zombies */
 
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Baby Mode", 0.1, 0.1, 0.1, 2.0, 0.3, 0.3, 0.3, 0.1, 8);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Easy", 0.6, 0.6, 0.6, 1.7, 0.8, 0.8, 0.8, 0.6, 10);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.0, 1.5, 1.2, 1.2, 1.2, 1.0, 25);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 0.8, 1.5, 1.5, 1.5, 1.3, 50);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 0.6, 1.7, 1.7, 1.7, 1.4, 75);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 2.0, 2.0, 2.0, 2.0, 100);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Baby Mode", 0.1, 0.1, 0.1, 2.0, 1.0, 0.3, 0.3, 0.1, 8);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Easy", 0.6, 0.6, 0.6, 1.7, 0.9, 0.8, 0.8, 0.6, 10);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.0, 1.5, 0.8, 1.2, 1.2, 1.0, 25);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 0.8, 0.7, 1.5, 1.5, 1.3, 50);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 0.6, 0.6, 1.7, 1.7, 1.4, 75);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 0.5, 2.0, 2.0, 2.0, 100);
 	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999);
 	
 	SetupMachines();
@@ -1585,7 +1587,7 @@ public Action Timer_RoundTimer(Handle timer)
 		char sPaused[16];
 		if (g_Match.pausetimer)
 			strcopy(sPaused, sizeof(sPaused), " (Paused)");
-		else
+		else if (GetTeamAliveCount(TEAM_SURVIVORS) > 0)
 			g_Match.roundtime--;
 		
 		char sSpec[64];
@@ -1628,7 +1630,7 @@ public Action Timer_RoundTimer(Handle timer)
 
 			g_Match.hud_timer.SetParams(0.0, 0.3, 2.0, 57, 255, 54, 255);
 
-			if (GameRules_GetProp("m_bInWaitingForPlayers"))
+			if (GameRules_GetProp("m_bInWaitingForPlayers") || GetTeamAliveCount(TEAM_SURVIVORS) < 1)
 			{
 				g_Match.hud_timer.Send(i, "☰ Starting (%s): Waiting for Players", sDifficulty);
 				return Plugin_Continue;
@@ -1705,7 +1707,7 @@ public Action Timer_RoundTimer(Handle timer)
 			SpawnPlanks();
 			SetupBuildings();
 
-			g_WaveTime = RoundFloat(float(GetRandomInt(ZOMBIE_WAVE_TIMER_MIN, ZOMBIE_WAVE_TIMER_MAX)) * g_Difficulty[g_Match.difficulty].wavespawn_rate);
+			g_WaveTime = GetWaveTime();
 			g_WaveTimer = CreateTimer(1.0, Timer_SpawnWave, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
 			g_Match.roundtime = 120;
@@ -1822,9 +1824,18 @@ public Action Timer_SpawnWave(Handle timer)
 	int max = 2 + RoundFloat(float((g_Match.round * (GetTeamAbsCount(TEAM_SURVIVORS) / 2))) * g_Difficulty[g_Match.difficulty].wavespawn_max);
 
 	SpawnWave(GetRandomInt(min, max));
-	g_WaveTime = RoundFloat(float(GetRandomInt(ZOMBIE_WAVE_TIMER_MIN, ZOMBIE_WAVE_TIMER_MAX)) * g_Difficulty[g_Match.difficulty].wavespawn_rate);
+	g_WaveTime = GetWaveTime();
 
 	return Plugin_Continue;
+}
+
+int GetWaveTime()
+{
+	float base = GetRandomFloat(ZOMBIE_WAVE_TIMER_MIN, ZOMBIE_WAVE_TIMER_MAX);
+	float round_multi = 0.04 * float(g_Match.round);
+	int time = RoundFloat((base - round_multi) * g_Difficulty[g_Match.difficulty].wavespawn_rate);
+	//PrintToChatAll("Wave Time: %i", time);
+	return time;
 }
 
 void TelePlayersToMap()
@@ -3405,20 +3416,10 @@ public Action OnClientThink(int client)
 public void OnClientDisconnect(int client)
 {
 	g_Player[client].ClearGlow();
-	CreateTimer(0.2, Timer_CheckPlayerCount, _, TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(0.5, Timer_ParseRoundEnd, _, TIMER_FLAG_NO_MAPCHANGE);
 
 	if (IsValidEntity(g_Player[client].revivemarker))
 		AcceptEntityInput(g_Player[client].revivemarker, "Kill");
-}
-
-public Action Timer_CheckPlayerCount(Handle timer)
-{
-	if (GetTeamAbsCount(TEAM_SURVIVORS) < 1)
-	{
-		g_Match.roundphase = PHASE_HIBERNATION;
-		StopTimer(g_Match.roundtimer);
-		StopTimer(g_WaveTimer);
-	}
 }
 
 public void OnClientDisconnect_Post(int client)
@@ -4897,7 +4898,7 @@ public Action Command_SetPoints(int client, int args)
 	else
 	{
 		CPrintToChat(target, "%N has set you points to %i.", client, value);
-		CPrintToChat(client, "You have set %N's points to %iCommand_SetPoints.", target, value);
+		CPrintToChat(client, "You have set %N's points to %i.", target, value);
 	}
 
 	return Plugin_Handled;
@@ -6047,5 +6048,15 @@ public Action Command_Target(int client, int args)
 	TF2_AddCondition(g_GlobalTarget, TFCond_MarkedForDeath, TFCondDuration_Infinite);
 	CPrintToChatAll("%N is now enemy number 1!", g_GlobalTarget);
 
+	return Plugin_Handled;
+}
+
+public Action Command_DisableEasterEggs(int client, int args)
+{
+	g_Match.secret_door_unlocked = false;
+	g_Match.bomb_heads = false;
+	g_Match.spawn_robots = false;
+
+	CPrintToChat(client, "Easter Eggs are disabled now.");
 	return Plugin_Handled;
 }
