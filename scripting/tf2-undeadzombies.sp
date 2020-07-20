@@ -973,7 +973,6 @@ public void OnPluginStart()
 	RegAdminCmd("sm_target", Command_Target, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_start", Command_StartMatch, ADMFLAG_GENERIC);
-	RegAdminCmd("sm_play", Command_StartMatch, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_startmatch", Command_StartMatch, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_startgame", Command_StartMatch, ADMFLAG_GENERIC);
 
@@ -3067,6 +3066,9 @@ public Action Command_StartMatch(int client, int args)
 	}
 
 	g_Match.roundtime = 5;
+	g_Match.pausetimer = false;
+	g_Match.pausezombies = false;
+	
 	CPrintToChatAll("{haunted}%N {default}has started the match.", client);
 
 	return Plugin_Handled;
