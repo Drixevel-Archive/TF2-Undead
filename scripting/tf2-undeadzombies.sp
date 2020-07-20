@@ -3631,7 +3631,7 @@ public Action TF2_OnCallMedic(int client)
 			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
-			GiveWallWeapon(client, index);
+			GiveWallWeapon(client, index, slot);
 			CPrintToChat(client, "You have purchased the Weapon: {haunted}%s", g_CustomWeapons[index].name);
 
 			if (IsPlayerIndex(client))
@@ -4063,8 +4063,16 @@ void DestroyWeapons()
 	}	
 }
 
-void GiveWallWeapon(int client, int index)
+void GiveWallWeapon(int client, int index, int slot)
 {
+	int current = GetPlayerWeaponSlot(client, slot);
+	if (IsValidEntity(current) && g_WeaponIndex[current] == index)
+	{
+		TF2Items_RefillMag(current);
+		TF2Items_RefillAmmo(client, current);
+		return;
+	}
+
 	int weapon = TF2Items_GiveItem(client, g_CustomWeapons[index].name);
 	
 	if (IsValidEntity(weapon))
@@ -4218,7 +4226,7 @@ public Action OnPowerupTouch(int entity, int other)
 		case 3:
 		{
 			int weapon;
-			for (int i = 0; i < 3; i++)
+			for (int i = 0; i < 2; i++)
 			{
 				if ((weapon = GetPlayerWeaponSlot(other, i)) == -1)
 					continue;
