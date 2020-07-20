@@ -37,11 +37,11 @@
 #define MAX_POWERUPS 32
 #define MAX_ZOMBIETYPES 32
 
-#define LOBBY_TIME 60
+#define LOBBY_TIME 5 //60
 #define MAX_POINTS 100000
 
 #define PLANK_HEALTH 150
-#define PLANK_COOLDOWN 30.0
+#define PLANK_COOLDOWN 2.0 //30.0
 
 #define ZOMBIE_DEFAULT "Common"
 
@@ -260,7 +260,7 @@ enum struct Match
 		this.hud_timer = null;
 		this.round = 0;
 		
-		this.pausetimer = false;
+		this.pausetimer = true;
 		this.pausezombies = false;
 
 		this.secret_door_unlocked = false;
@@ -314,6 +314,7 @@ enum struct Player
 	float sounds;
 	int type;
 	bool insidemap;
+	int plank_target;
 	float plank_damage_tick;
 	char death_sound[PLATFORM_MAX_PATH];
 
@@ -350,6 +351,7 @@ enum struct Player
 		this.sounds = -1.0;
 		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		this.insidemap = false;
+		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
 		this.death_sound[0] = '\0';
 
@@ -388,6 +390,7 @@ enum struct Player
 		this.sounds = -1.0;
 		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		this.insidemap = false;
+		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
 		this.death_sound[0] = '\0';
 
@@ -423,6 +426,7 @@ enum struct Player
 		this.sounds = -1.0;
 		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		this.insidemap = false;
+		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
 		this.death_sound[0] = '\0';
 
@@ -680,6 +684,7 @@ enum struct Zombies
 	int planktarget;
 	float sounds;
 	bool insidemap;
+	int plank_target;
 	float plank_damage_tick;
 	char death_sound[PLATFORM_MAX_PATH];
 
@@ -694,6 +699,7 @@ enum struct Zombies
 		this.planktarget = -1;
 		this.sounds = -1.0;
 		this.insidemap = false;
+		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
 		this.death_sound[0] = '\0';
 	}
@@ -4211,12 +4217,14 @@ public Action OnPowerupTouch(int entity, int other)
 		//max ammo
 		case 3:
 		{
-			int active = GetActiveWeapon(other);
-
-			if (IsValidEntity(active))
+			int weapon;
+			for (int i = 0; i < 3; i++)
 			{
-				TF2Items_RefillMag(active);
-				TF2Items_RefillAmmo(other, active);
+				if ((weapon = GetPlayerWeaponSlot(other, i)) == -1)
+					continue;
+				
+				TF2Items_RefillMag(weapon);
+				TF2Items_RefillAmmo(other, weapon);
 			}
 		}
 	}
@@ -4536,12 +4544,12 @@ void OnPlankTick(int entity)
 	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
 
 	OnPlankSurvivorTick(entity, disabled);
-
+	
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
 			continue;
-		
+				
 		if (health <= 0)
 		{
 			g_Player[i].plank_damage_tick = -1.0;
@@ -4626,6 +4634,8 @@ bool DamagePlank(int entity, float damage = 15.0)
 		RecomputeNavs();
 		g_RebuildDelay[entity] = GetGameTime() + PLANK_COOLDOWN;
 		SetEntProp(entity, Prop_Data, "m_iHealth", 0);
+
+		return false;
 	}
 
 	return true;
