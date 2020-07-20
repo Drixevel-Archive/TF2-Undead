@@ -3068,7 +3068,7 @@ public Action Command_StartMatch(int client, int args)
 	g_Match.roundtime = 5;
 	g_Match.pausetimer = false;
 	g_Match.pausezombies = false;
-	
+
 	CPrintToChatAll("{haunted}%N {default}has started the match.", client);
 
 	return Plugin_Handled;
@@ -3634,7 +3634,11 @@ public Action TF2_OnCallMedic(int client)
 			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
 			GiveWallWeapon(client, index, slot);
-			CPrintToChat(client, "You have purchased the Weapon: {haunted}%s", g_CustomWeapons[index].name);
+
+			if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
+				CPrintToChat(client, "You have purchased ammo for your weapon: {haunted}%s", g_CustomWeapons[index].name);
+			else
+				CPrintToChat(client, "You have purchased the Weapon: {haunted}%s", g_CustomWeapons[index].name);
 
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_WEAPONS, 1);
@@ -4030,14 +4034,14 @@ void OnWeaponTick(int entity)
 				int weapon = GetPlayerWeaponSlot(i, slot);
 				if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
 				{
-					strcopy(sRepurchase, sizeof(sRepurchase), "re");
+					strcopy(sRepurchase, sizeof(sRepurchase), "ammo for ");
 					price *= 2;
 				}
 
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to %spurchase %s for %i points. (%s Only)", sRepurchase, g_CustomWeapons[index].name, price, sClasses);
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to purchase %s%s for %i points. (%s Only)", sRepurchase, g_CustomWeapons[index].name, price, sClasses);
 			}
 			else
 			{
