@@ -3557,6 +3557,18 @@ public void OnGameFrame()
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "obj_*")) != -1)
 		OnBuildingTick(entity);
+	
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "tf_halloween_pickup")) != -1)
+	{
+		for (int i = 1; i <= MaxClients; i++)
+		{
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS || GetEntitiesDistance(i, entity) > 100.0)
+				continue;
+			
+			OnPowerupPickup(i, entity);
+		}
+	}
 }
 
 public Action TF2_OnCallMedic(int client)
@@ -4208,8 +4220,13 @@ public Action Timer_Sound(Handle timer, any data)
 
 public Action OnPowerupTouch(int entity, int other)
 {
-	if (!IsPlayerIndex(other) || GetClientTeam(other) != TEAM_SURVIVORS)
-		return Plugin_Stop;
+	return OnPowerupPickup(other, entity) ? Plugin_Continue : Plugin_Stop;
+}
+
+bool OnPowerupPickup(int client, int entity)
+{
+	if (!IsPlayerIndex(client) || GetClientTeam(client) != TEAM_SURVIVORS || !IsValidEntity(entity))
+		return false;
 	
 	StopSound(entity, SNDCHAN_USER_BASE + 14, "undead/powerups/powerup_loop.wav");
 
@@ -4221,10 +4238,10 @@ public Action OnPowerupTouch(int entity, int other)
 	{
 		//double points
 		case 0:
-			g_Player[other].doublepoints = GetTime() + RoundFloat(g_Powerups[index].timer);
+			g_Player[client].doublepoints = GetTime() + RoundFloat(g_Powerups[index].timer);
 		//insta kill
 		case 1:
-			g_Player[other].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
+			g_Player[client].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
 		//nuke
 		case 2:
 			KillAllZombies();
@@ -4234,35 +4251,23 @@ public Action OnPowerupTouch(int entity, int other)
 			int weapon;
 			for (int i = 0; i < 2; i++)
 			{
-				if ((weapon = GetPlayerWeaponSlot(other, i)) == -1)
+				if ((weapon = GetPlayerWeaponSlot(client, i)) == -1)
 					continue;
 				
 				TF2Items_RefillMag(weapon);
-				TF2Items_RefillAmmo(other, weapon);
+				TF2Items_RefillAmmo(client, weapon);
 			}
 		}
 	}
 	
-	EmitSoundToClient(other, "undead/powerups/powerup_grab.wav");
-	EmitSoundToClient(other, g_Powerups[index].sound);
+	EmitSoundToClient(client, "undead/powerups/powerup_grab.wav");
+	EmitSoundToClient(client, g_Powerups[index].sound);
 
-	if (IsPlayerIndex(other))
-		g_Player[other].AddStat(STAT_POWERUP, 1);
+	if (IsPlayerIndex(client))
+		g_Player[client].AddStat(STAT_POWERUP, 1);
 	
-	return Plugin_Continue;
+	return true;
 }
-
-stock void StopSoundPerm(int client, const char[] sound)
-{
-    StopSound(client, SNDCHAN_AUTO, sound);
-    StopSound(client, SNDCHAN_WEAPON, sound);
-    StopSound(client, SNDCHAN_VOICE, sound);
-    StopSound(client, SNDCHAN_ITEM, sound);
-    StopSound(client, SNDCHAN_BODY, sound);
-    StopSound(client, SNDCHAN_STREAM, sound);
-    StopSound(client, SNDCHAN_VOICE_BASE, sound);
-    StopSound(client, SNDCHAN_USER_BASE, sound);
-} 
 
 void DestroyPowerups()
 {
@@ -5415,7 +5420,7 @@ public Action Timer_Delete(Handle timer, any data)
 
 public Action Command_Difficulty(int client, int args)
 {
-	if (!CheckCommandAccess(client, "", ADMFLAG_ROOT, true) && g_Match.roundphase != PHASE_STARTING)
+	if (!IsDrixevel(client) && !CheckCommandAccess(client, "", ADMFLAG_ROOT, true) && g_Match.roundphase != PHASE_STARTING)
 	{
 		CPrintToChat(client, "You aren't allowed to switch the difficulty during the match.");
 		return Plugin_Handled;
@@ -5466,7 +5471,7 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 	{
 		case MenuAction_Select:
 		{
-			if (g_Match.roundphase != PHASE_STARTING)
+			if (!IsDrixevel(param1) && g_Match.roundphase != PHASE_STARTING)
 			{
 				CPrintToChat(param1, "You aren't allowed to switch the difficulty during the match.");
 				return;
@@ -5487,7 +5492,7 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 
 void UpdateDifficulty(int difficulty, int admin = -1)
 {
-	if (g_Match.roundphase != PHASE_STARTING && admin != -1)
+	if (admin != -1 && !IsDrixevel(admin) && g_Match.roundphase != PHASE_STARTING)
 	{
 		CPrintToChat(admin, "You aren't allowed to switch the difficulty during the match.");
 		return;
@@ -5616,7 +5621,7 @@ public Action Command_SetRound(int client, int args)
 void SetupSpecials()
 {
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Common", "A common garden variety zombie.");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 800, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 10000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "");
