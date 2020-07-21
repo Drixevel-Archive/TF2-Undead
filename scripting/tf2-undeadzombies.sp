@@ -4371,7 +4371,10 @@ bool OnPowerupPickup(int client, int entity)
 			g_Player[client].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
 		//nuke
 		case 2:
+		{
 			KillAllZombies();
+			ScreenFadeAll2();
+		}
 		//max ammo
 		case 3:
 		{
@@ -4394,6 +4397,44 @@ bool OnPowerupPickup(int client, int entity)
 		g_Player[client].AddStat(STAT_POWERUP, 1);
 	
 	return true;
+}
+
+void ScreenFadeAll2(int duration = 50, int hold_time = 50, int flag = FFADE_IN, int colors[4] = {235, 235, 235, 200}, bool reliable = true)
+{
+	bool pb = GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf;
+	Handle userMessage;
+	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || IsFakeClient(i))
+			continue;
+		
+		userMessage = StartMessageOne("Fade", i, (reliable ? USERMSG_RELIABLE : 0));
+
+		if (userMessage == null)
+			continue;
+
+		if (pb)
+		{
+			PbSetInt(userMessage, "duration", duration);
+			PbSetInt(userMessage, "hold_time", hold_time);
+			PbSetInt(userMessage, "flags", flag);
+			PbSetColor(userMessage, "clr", colors);
+		}
+		else
+		{
+			BfWriteShort(userMessage, duration);
+			BfWriteShort(userMessage, hold_time);
+			BfWriteShort(userMessage, flag);
+			BfWriteByte(userMessage, colors[0]);
+			BfWriteByte(userMessage, colors[1]);
+			BfWriteByte(userMessage, colors[2]);
+			BfWriteByte(userMessage, colors[3]);
+		}
+		
+		EndMessage();
+		userMessage = null;
+	}
 }
 
 void DestroyPowerups()
@@ -5891,7 +5932,7 @@ int CalculateHealth(int entity)
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
 	int health = (basehealth + (g_Match.round * 2));
-	
+
 	return health;
 }
 
