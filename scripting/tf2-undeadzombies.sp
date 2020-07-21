@@ -1755,14 +1755,22 @@ public Action Timer_RoundTimer(Handle timer)
 			}
 			else
 			{
+				int time = GetTime();
+
+				char sPowerup[64];
+				if (g_Player[i].doublepoints > time)
+					Format(sPowerup, sizeof(sPowerup), "%s\n☰ Double Points: %i", sPowerup, g_Player[i].doublepoints - time);
+				if (g_Player[i].instakill > time)
+					Format(sPowerup, sizeof(sPowerup), "%s\n☰ Instakill: %i", sPowerup, g_Player[i].instakill - time);
+				
 				switch (g_Match.roundphase)
 				{
 					case PHASE_STARTING:
 						g_Match.hud_timer.Send(i, "☰ Starting (%s): %s%s%s", sDifficulty, sTime, sPaused, sSpec);
 					case PHASE_WAITING:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave: %s%s\n☰ Points: %i%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPerks);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave: %s%s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
 					case PHASE_ACTIVE:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - %s%s\n☰ Points: %i%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPerks);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - %s%s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
 				}
 			}
 		}
