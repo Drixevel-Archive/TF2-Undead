@@ -1671,7 +1671,8 @@ void InitLobby()
 	g_Match.roundtimer = CreateTimer(1.0, Timer_RoundTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
 	for (int i = 1; i <= MaxClients; i++)
-		g_Player[i].Reset();
+		if (IsClientInGame(i))
+			g_Player[i].Reset();
 	
 	TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
 }
@@ -2009,7 +2010,8 @@ public void TF2_OnRoundEnd(int team, int winreason, int flagcaplimit, bool full_
 		for (int x = 0; x < 5; x++)
 			if ((weapon = GetPlayerWeaponSlot(i, x)) != -1)
 				TF2Attrib_RemoveAll(weapon);
-
+		
+		g_Player[i].Clean(false);
 		g_Player[i].zombiekills = 0;
 	}
 
@@ -2865,7 +2867,14 @@ public void OnZombieThink(int entity)
 		else if (g_Match.round >= 15)
 			damage *= 1.5;
 		
-		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
+		if (IsDrixevel(target))
+		{
+			SDKHooks_TakeDamage(entity, 0, target, 99999.0);
+			OnZombieDeath(entity, false, false, target);
+		}
+		else
+			SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
+		
 		SpeakResponseConcept(target, "TLK_PLAYER_PAIN");
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", target);
 
@@ -2992,7 +3001,7 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 
 	if (npc == INVALID_NPC || IsPlayerIndex(attacker) && GetClientTeam(attacker) == npc.iTeamNum)
 		return Plugin_Continue;
-
+	
 	bool changed;
 	if (IsPlayerIndex(attacker) && g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
 	{
@@ -3167,6 +3176,9 @@ public Action Command_StartMatch(int client, int args)
 		return Plugin_Handled;
 	}
 
+	if (GameRules_GetProp("m_bInWaitingForPlayers"))
+		ServerCommand("mp_waitingforplayers_cancel 1");
+
 	g_Match.roundtime = 5;
 	g_Match.pausetimer = false;
 	g_Match.pausezombies = false;
@@ -3280,19 +3292,13 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 			g_Player[client].ApplyPerks(true);
 		}
 
-		CreateTimer(0.2, Timer_AddGlow, client);
+		//g_Player[client].CreateGlow();
 	}
 	
 	if (g_Match.roundphase == PHASE_HIBERNATION)
 		InitLobby();
 
 	return Plugin_Stop;
-}
-
-public Action Timer_AddGlow(Handle timer, any data)
-{
-	int client = data;
-	g_Player[client].CreateGlow();
 }
 
 int TF2_AttachBasicGlow(int entity)
@@ -3629,7 +3635,7 @@ public Action OnClientCommand(int client, int args)
 			else
 				PrintErrorMessage(client, "Please wait %i seconds to BRAAAAAAAAAAAAAAAAAINS again.", RoundFloat(g_Player[client].sounds - time));
 		}
-		
+
 		return Plugin_Stop;
 	}
 
@@ -3788,9 +3794,8 @@ public Action TF2_OnCallMedic(int client)
 		}
 		else
 		{
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-
 			StartSecretBoxEvent(client, entity);
+			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 			CPrintToChat(client, "You have opened the {haunted}Weapons Chest{default}.");
 
 			if (IsPlayerIndex(client))
@@ -4118,6 +4123,7 @@ void SpawnWeapons()
 		DispatchSpawn(weapon);
 
 		TF2_CreateGlow("weapon_color", weapon, view_as<int>({255, 200, 200, 150}));
+		//CreatePointGlow(origin, 360.0);
 
 		g_SpawnedWeapons[weapon].index = index;
 		g_SpawnedWeapons[weapon].price = StringToInt(sCost);
@@ -4497,7 +4503,7 @@ void OnSecretBoxTick(int entity)
 	{
 		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS)
 			continue;
-				
+		
 		if (IsVisibleTo(i, entity, 120.0, false))
 		{
 			if (unlock <= g_Match.round + 1)
@@ -4587,16 +4593,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 
 	if (!IsPlayerIndex(client) || !IsValidEntity(secretbox) || !IsValidEntity(display))
 	{
-		if (IsValidEntity(display))
-			AcceptEntityInput(display, "Kill");
-		
-		if (IsValidEntity(secretbox))
-		{
-			AnimateEntity(secretbox, "closing");
-			g_SecretBox[secretbox].inuse = false;
-			AcceptEntityInput(g_SecretBox[secretbox].glow, "Enable");
-		}
-		
+		CloseSecretBox(display, secretbox);
 		return Plugin_Stop;
 	}
 
@@ -4669,8 +4666,8 @@ void CloseSecretBox(int display, int secretbox)
 	if (IsValidEntity(secretbox))
 	{
 		AnimateEntity(secretbox, "closing");
-		g_SecretBox[secretbox].inuse = false;
 		AcceptEntityInput(g_SecretBox[secretbox].glow, "Enable");
+		g_SecretBox[secretbox].inuse = false;
 	}
 }
 
@@ -5505,10 +5502,12 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
+		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+
 		char sModel[PLATFORM_MAX_PATH];
 		GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
 		CreateRagdoll(vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class]);
-		npc.SetCollisionBounds(view_as<float>(view_as<float>({0.0, 180.0, 0.0})), view_as<float>(view_as<float>({0.0, 180.0, 0.0})));
+
 		AcceptEntityInput(entity, "Kill");
 
 		if (IsPlayerIndex(attacker))
@@ -5783,7 +5782,7 @@ void SetupSpecials()
 {
 	g_TotalZombieTypes = 0;
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Common", "A common garden variety zombie.");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 10000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 3000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "");
@@ -6071,9 +6070,9 @@ void PlayZombieSound(int entity)
 	EmitSoundToAll(sSound, entity);
 }
 
-stock void CreatePointGlow(float origin[3])
+stock void CreatePointGlow(float origin[3], float time = 0.95)
 {
-	TE_SetupGlowSprite(origin, g_GlowSprite, 0.95, 1.5, 50);
+	TE_SetupGlowSprite(origin, g_GlowSprite, time, 1.0, 50);
 	TE_SendToAll();
 }
 
