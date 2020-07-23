@@ -348,6 +348,9 @@ enum struct Player
 	ArrayList perks;
 	StringMap stats;
 
+	int firetotal;
+	Handle firetimer;
+
 	void Init(int client)
 	{
 		this.client = client;
@@ -380,8 +383,11 @@ enum struct Player
 		this.secondary = -1;
 		this.melee = -1;
 
+		this.firetotal = -1;
+
 		StopTimer(this.regentimer);
 		StopTimer(this.punchanim);
+		StopTimer(this.firetimer);
 
 		delete this.perks;
 		this.perks = new ArrayList(ByteCountToCells(MAX_NAME_LENGTH));
@@ -426,6 +432,7 @@ enum struct Player
 		this.KillParticle();
 		this.ClearGlow();
 		this.KillBuilding();
+		this.ClearFire();
 
 		StopTimer(this.regentimer);
 		StopTimer(this.punchanim);
@@ -474,6 +481,9 @@ enum struct Player
 
 		this.stats = null;
 		this.perks = null;
+
+		this.firetotal = 0;
+		this.firetimer = null;
 	}
 
 	int AttachParticle(const char[] particle, float time = 0.0, const char[] attachment)
@@ -754,6 +764,24 @@ enum struct Player
 		
 		this.building = -1;
 	}
+
+	void SetOnFire(float ticks = 1.0, int total = 6)
+	{
+		if (!IsPlayerAlive(this.client))
+			return;
+		
+		this.firetotal = total;
+		StopTimer(this.firetimer);
+		this.firetimer = CreateTimer(ticks, Timer_SetOnFire, this.client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		TriggerTimer(this.firetimer);
+		EmitGameSoundToAll("Fire.Engulf", this.client);
+	}
+
+	void ClearFire()
+	{
+		this.firetotal = -1;
+		StopTimer(this.firetimer);
+	}
 }
 
 Player g_Player[MAXPLAYERS + 1];
@@ -765,6 +793,28 @@ public Action Timer_Regen(Handle timer, any data)
 
 	if (IsClientInGame(victim) && IsPlayerAlive(victim))
 		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? 300 : 150);
+}
+
+public Action Timer_SetOnFire(Handle timer, any data)
+{
+	int client = data;
+
+	g_Player[client].firetotal--;
+
+	if (g_Player[client].firetotal <= 0 || !IsClientInGame(client) || !IsPlayerAlive(client) || GetClientTeam(client) != TEAM_SURVIVORS)
+	{
+		g_Player[client].firetimer = null;
+		return Plugin_Stop;
+	}
+
+	float origin[3];
+	GetClientEyePosition(client, origin);
+
+	AttachParticle(client, "buildingdamage_dispenser_fire1", 1.0, "flag");
+	SDKHooks_TakeDamage(client, 0, 0, 15.0, DMG_BURN);
+	EmitGameSoundToAll("General.BurningFlesh", client);
+
+	return Plugin_Continue;
 }
 
 //Zombies
@@ -1052,6 +1102,7 @@ public void OnPluginStart()
 
 	RegConsoleCmd("sm_difficulty", Command_Difficulty);
 	RegConsoleCmd("sm_setdifficulty", Command_Difficulty);
+	RegConsoleCmd("sm_votedifficulty", Command_VoteDifficulty);
 
 	RegAdminCmd("sm_round", Command_SetRound, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_setround", Command_SetRound, ADMFLAG_GENERIC);
@@ -2903,7 +2954,7 @@ public void OnZombieThink(int entity)
 		int type = g_Zombies[npc.Index].type;
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
-			TF2_AddCondition(target, TFCond_OnFire, 6.0);
+			g_Player[target].SetOnFire();
 		else if (type == GetZombieTypeByName("Spikey Bois"))
 			TF2_AddCondition(target, TFCond_Bleeding, 6.0);
 
@@ -5513,10 +5564,21 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (bomb_heads && g_Match.bomb_heads)
 	{
-		TE_Particle("rocketbackblast", vecOrigin, entity);
+		TE_Particle("pumpkin_explode", vecOrigin, entity);
 		DamageRadius(vecOrigin, 150.0, 50.0, entity, 0, DMG_BLAST);
 		PushPlayersFromPoint(vecOrigin, 50.0, 150.0, 0, entity);
 		EmitGameSoundToAll("Halloween.PumpkinDrop", entity);
+	}
+
+	bool noragdoll;
+
+	if (g_Zombies[npc.Index].type == GetZombieTypeByName("Explosive Demo"))
+	{
+		TE_Particle("hightower_explosion", vecOrigin, entity);
+		DamageRadius(vecOrigin, 250.0, 100.0, entity, 0, DMG_BLAST);
+		PushPlayersFromPoint(vecOrigin, 150.0, 350.0, 0, entity);
+		EmitGameSoundToAll("BaseExplosionEffect.Sound", entity);
+		noragdoll = true;
 	}
 	
 	if (powerups && GetRandomFloat(0.0, 100.0) <= POWERUP_CHANCE && (entity <= MaxClients && g_Player[entity].insidemap || entity > MaxClients && g_Zombies[npc.Index].insidemap))
@@ -5526,9 +5588,12 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 	{
 		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
 
-		char sModel[PLATFORM_MAX_PATH];
-		GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
-		CreateRagdoll(vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class]);
+		if (!noragdoll)
+		{
+			char sModel[PLATFORM_MAX_PATH];
+			GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
+			CreateRagdoll(vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class]);
+		}
 
 		AcceptEntityInput(entity, "Kill");
 
@@ -5820,10 +5885,10 @@ void SetupSpecials()
 {
 	g_TotalZombieTypes = 0;
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Common", "A common garden variety zombie.");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 3000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball", 15);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail", 10);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 6000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball", 15);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail", 10);
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers", 8);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "", 6);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", 100, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "", 6);
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "", 4);
 }
 
@@ -6419,5 +6484,11 @@ public Action Command_SetZombieType(int client, int args)
 		CPrintToChat(target, "You are now a {haunted}%s{default}. (Set by {haunted}%N{default})", g_ZombieTypes[special].name, client);
 	}
 	
+	return Plugin_Handled;
+}
+
+public Action Command_VoteDifficulty(int client, int args)
+{
+
 	return Plugin_Handled;
 }
