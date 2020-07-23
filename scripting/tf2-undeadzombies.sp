@@ -218,8 +218,9 @@ enum struct Difficulty
 	float wavespawn_max;
 	float movespeed_multipler;
 	int max_zombies;
+	bool admin_only;
 
-	void CreateDifficulty(const char[] name, float damage_multiplier = 1.0, float health_multiplier = 1.0, float points_multiplier = 1.0, float revive_multiplier = 1.0, float wavespawn_rate = 1.0, float wavespawn_min = 1.0, float wavespawn_max = 1.0, float movespeed_multipler = 1.0, int max_zombies = 100)
+	void CreateDifficulty(const char[] name, float damage_multiplier = 1.0, float health_multiplier = 1.0, float points_multiplier = 1.0, float revive_multiplier = 1.0, float wavespawn_rate = 1.0, float wavespawn_min = 1.0, float wavespawn_max = 1.0, float movespeed_multipler = 1.0, int max_zombies = 100, bool admin_only = false)
 	{
 		strcopy(this.name, 64, name);
 		this.damage_multiplier = damage_multiplier;
@@ -231,6 +232,7 @@ enum struct Difficulty
 		this.wavespawn_max = wavespawn_max;
 		this.movespeed_multipler = movespeed_multipler;
 		this.max_zombies = max_zombies;
+		this.admin_only = admin_only;
 		g_TotalDifficulties++;
 	}
 }
@@ -1009,6 +1011,7 @@ enum struct ZombieTypes
 		strcopy(this.spawn_sound, PLATFORM_MAX_PATH, spawn_sound);
 		strcopy(this.death_sound, PLATFORM_MAX_PATH, death_sound);
 		strcopy(this.particle, 64, particle);
+		this.unlock_wave = unlock_wave;
 
 		g_TotalZombieTypes++;
 	}
@@ -1047,8 +1050,8 @@ public void OnPluginStart()
 
 	RegConsoleCmd("sm_undeadstats", Command_Statistics);
 
-	RegAdminCmd("sm_difficulty", Command_Difficulty, ADMFLAG_GENERIC);
-	RegAdminCmd("sm_setdifficulty", Command_Difficulty, ADMFLAG_GENERIC);
+	RegConsoleCmd("sm_difficulty", Command_Difficulty);
+	RegConsoleCmd("sm_setdifficulty", Command_Difficulty);
 
 	RegAdminCmd("sm_round", Command_SetRound, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_setround", Command_SetRound, ADMFLAG_GENERIC);
@@ -1184,8 +1187,8 @@ public void OnPluginStart()
 	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.0, 1.5, 0.8, 1.2, 1.2, 1.0, 25);
 	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 0.8, 0.7, 1.5, 1.5, 1.3, 50);
 	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 0.6, 0.6, 1.7, 1.7, 1.4, 75);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 0.5, 2.0, 2.0, 2.0, 100);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 0.5, 2.0, 2.0, 2.0, 100, true);
+	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999, true);
 	
 	SetupMachines();
 	SetupCustomWeapons();
@@ -2279,7 +2282,7 @@ void SpawnWave(int amount)
 	int total = amount;
 	int special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
-	float origin[3];
+	float origin[3]; int failsafe;
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES || total <= 0)
@@ -2296,8 +2299,15 @@ void SpawnWave(int amount)
 		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
 
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
+			failsafe = 0;
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round && failsafe < 50)
+			{
 				special = GetRandomInt(1, g_TotalZombieTypes - 1);
+				failsafe++;
+			}
+
+			if (failsafe >= 50)
+				special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		}
 		
 		ApplySpecialUpdates(i, special, origin);
@@ -2314,8 +2324,15 @@ void SpawnWave(int amount)
 		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
 
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
+			failsafe = 0;
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round && failsafe < 50)
+			{
 				special = GetRandomInt(1, g_TotalZombieTypes - 1);
+				failsafe++;
+			}
+
+			if (failsafe >= 50)
+				special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		}
 		
 		SpawnRandomZombie(special);
@@ -5585,15 +5602,23 @@ public Action Timer_Delete(Handle timer, any data)
 
 public Action Command_Difficulty(int client, int args)
 {
-	if (!IsDrixevel(client) && !CheckCommandAccess(client, "", ADMFLAG_ROOT, true) && g_Match.roundphase != PHASE_STARTING)
+	if (g_Match.roundphase != PHASE_STARTING)
 	{
 		CPrintToChat(client, "You aren't allowed to switch the difficulty during the match.");
 		return Plugin_Handled;
 	}
 
+	bool isadmin = CheckCommandAccess(client, "", ADMFLAG_GENERIC, true);
+
+	if (!isadmin && GetTeamAliveCount(TEAM_SURVIVORS) > 1)
+	{
+		CPrintToChat(client, "You are only allowed to use this command if you're an admin or you're the only person on the server.");
+		return Plugin_Handled;
+	}
+
 	if (args == 0)
 	{
-		OpenDifficultyMenu(client);
+		OpenDifficultyMenu(client, isadmin);
 		return Plugin_Handled;
 	}
 
@@ -5608,12 +5633,18 @@ public Action Command_Difficulty(int client, int args)
 		return Plugin_Handled;
 	}
 
+	if (!isadmin && g_Difficulty[difficulty].admin_only)
+	{
+		CPrintToChat(client, "Difficulty {haunted}%s {default}is for admins only.", sDifficulty);
+		return Plugin_Handled;
+	}
+
 	UpdateDifficulty(difficulty, client);
 
 	return Plugin_Handled;
 }
 
-void OpenDifficultyMenu(int client, bool back = false)
+void OpenDifficultyMenu(int client, bool isadmin = false, bool back = false)
 {
 	Menu menu = new Menu(MenuHandler_Difficulty);
 	menu.SetTitle("Choose a difficulty:");
@@ -5623,8 +5654,10 @@ void OpenDifficultyMenu(int client, bool back = false)
 	{
 		IntToString(i, sID, sizeof(sID));
 		FormatEx(sDisplay, sizeof(sDisplay), "%s%s", g_Difficulty[i].name, (i == g_Match.difficulty) ? " (Current)" : "");
-		menu.AddItem(sID, sDisplay, (i == g_Match.difficulty) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
+		menu.AddItem(sID, sDisplay, (i == g_Match.difficulty || !isadmin && g_Difficulty[i].admin_only) ? ITEMDRAW_DISABLED : ITEMDRAW_DEFAULT);
 	}
+
+	PushMenuBool(menu, "isadmin", isadmin);
 
 	menu.ExitBackButton = back;
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -5645,7 +5678,7 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 			char sDifficulty[16];
 			menu.GetItem(param2, sDifficulty, sizeof(sDifficulty));
 			UpdateDifficulty(StringToInt(sDifficulty), param1);
-			OpenDifficultyMenu(param1);
+			OpenDifficultyMenu(param1, GetMenuBool(menu, "isadmin"));
 		}
 		case MenuAction_Cancel:
 			if (param2 == MenuCancel_ExitBack)
