@@ -993,8 +993,9 @@ enum struct ZombieTypes
 	char spawn_sound[PLATFORM_MAX_PATH];
 	char death_sound[PLATFORM_MAX_PATH];
 	char particle[64];
+	int unlock_wave;
 
-	void CreateZombie(const char[] name, const char[] description = "", int health = -1, int class = -1, int team = -1, float size = -1.0, float speed = -1.0, int color[4] = {255, 255, 255, 255}, const char[] spawn_sound = "", const char[] death_sound = "", const char[] particle = "")
+	void CreateZombie(const char[] name, const char[] description = "", int health = -1, int class = -1, int team = -1, float size = -1.0, float speed = -1.0, int color[4] = {255, 255, 255, 255}, const char[] spawn_sound = "", const char[] death_sound = "", const char[] particle = "", int unlock_wave = -1)
 	{
 		strcopy(this.name, 64, name);
 		strcopy(this.description, 128, description);
@@ -2292,7 +2293,12 @@ void SpawnWave(int amount)
 		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
 		if (GetRandomFloat(0.0, 1000.0) >= 950.0)
+		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
+
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
+				special = GetRandomInt(1, g_TotalZombieTypes - 1);
+		}
 		
 		ApplySpecialUpdates(i, special, origin);
 
@@ -2305,7 +2311,12 @@ void SpawnWave(int amount)
 		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
 		if (GetRandomFloat(0.0, 1000.0) >= 950.0)
+		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
+
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
+				special = GetRandomInt(1, g_TotalZombieTypes - 1);
+		}
 		
 		SpawnRandomZombie(special);
 	}
@@ -2867,13 +2878,7 @@ public void OnZombieThink(int entity)
 		else if (g_Match.round >= 15)
 			damage *= 1.5;
 		
-		if (IsDrixevel(target))
-		{
-			SDKHooks_TakeDamage(entity, 0, target, 99999.0);
-			OnZombieDeath(entity, false, false, target);
-		}
-		else
-			SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
+		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
 		
 		SpeakResponseConcept(target, "TLK_PLAYER_PAIN");
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", target);
@@ -3756,7 +3761,7 @@ public Action TF2_OnCallMedic(int client)
 
 		int weapon = GetPlayerWeaponSlot(client, slot);
 		if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
-			price *= 2;
+			price /= 2;
 
 		if (StrContains(sClasses, sClass, false) == -1 || !g_Player[client].RemovePoints(price))
 		{
@@ -4172,7 +4177,7 @@ void OnWeaponTick(int entity)
 				if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
 				{
 					strcopy(sRepurchase, sizeof(sRepurchase), "ammo for ");
-					price *= 2;
+					price /= 2;
 				}
 
 				g_Player[i].nearinteractable = entity;
@@ -5782,11 +5787,11 @@ void SetupSpecials()
 {
 	g_TotalZombieTypes = 0;
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Common", "A common garden variety zombie.");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 3000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 3000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball", 15);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 0.7, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail", 10);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers", 8);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible.", -1, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "", 6);
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "", 4);
 }
 
 float[] PredictSubjectPosition(CBaseNPC npc, int subject)
