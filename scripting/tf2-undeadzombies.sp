@@ -4540,7 +4540,7 @@ bool OnPowerupPickup(int client, int entity)
 	return true;
 }
 
-void ScreenFadeAll2(int duration = 50, int hold_time = 50, int flag = FFADE_IN, int colors[4] = {235, 235, 235, 200}, bool reliable = true)
+void ScreenFadeAll2(int duration = 100, int hold_time = 100, int flag = FFADE_IN, int colors[4] = {235, 235, 235, 200}, bool reliable = true)
 {
 	bool pb = GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf;
 	Handle userMessage;
