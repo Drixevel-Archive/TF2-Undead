@@ -3235,7 +3235,7 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	{
 		float origin[3];
 		GetEntityOrigin(pThis, origin);
-		ScreenShakeAll(SHAKE_START, 25.0, 25.0, 1.0, 1000.0, origin);
+		ScreenShakeAll(SHAKE_START, 15.0, 15.0, 1.0, 1000.0, origin);
 	}
 }
 
