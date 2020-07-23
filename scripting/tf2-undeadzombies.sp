@@ -5,6 +5,10 @@
 - Max Ammo doesn't refill any ammo on completely drained weapons
 */
 
+/*
+	
+*/
+
 /*****************************/
 //Pragma
 #pragma semicolon 1
@@ -5712,7 +5716,7 @@ public Action Timer_Delete(Handle timer, any data)
 {
 	int entity = -1;
 	if ((entity = EntRefToEntIndex(data)) != -1)
-		AcceptEntityInput(entity, "Kill");
+		AcceptEntityInput(entity, "KillHeirarchy");
 }
 
 public Action Command_Difficulty(int client, int args)
