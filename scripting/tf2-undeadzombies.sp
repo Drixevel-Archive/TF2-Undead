@@ -351,6 +351,9 @@ enum struct Player
 	int firetotal;
 	Handle firetimer;
 
+	int bleedtotal;
+	Handle bleedtimer;
+
 	void Init(int client)
 	{
 		this.client = client;
@@ -384,10 +387,12 @@ enum struct Player
 		this.melee = -1;
 
 		this.firetotal = -1;
+		this.bleedtotal = -1;
 
 		StopTimer(this.regentimer);
 		StopTimer(this.punchanim);
 		StopTimer(this.firetimer);
+		StopTimer(this.bleedtimer);
 
 		delete this.perks;
 		this.perks = new ArrayList(ByteCountToCells(MAX_NAME_LENGTH));
@@ -433,6 +438,7 @@ enum struct Player
 		this.ClearGlow();
 		this.KillBuilding();
 		this.ClearFire();
+		this.ClearBleed();
 
 		StopTimer(this.regentimer);
 		StopTimer(this.punchanim);
@@ -484,6 +490,9 @@ enum struct Player
 
 		this.firetotal = 0;
 		this.firetimer = null;
+
+		this.bleedtotal = 0;
+		this.bleedtimer = null;
 	}
 
 	int AttachParticle(const char[] particle, float time = 0.0, const char[] attachment)
@@ -782,6 +791,24 @@ enum struct Player
 		this.firetotal = -1;
 		StopTimer(this.firetimer);
 	}
+
+	void Bleed(float ticks = 1.0, int total = 6)
+	{
+		if (!IsPlayerAlive(this.client))
+			return;
+		
+		this.bleedtotal = total;
+		StopTimer(this.bleedtimer);
+		this.bleedtimer = CreateTimer(ticks, Timer_BleedClient, this.client, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+		TriggerTimer(this.bleedtimer);
+		EmitGameSoundToAll("Weapon_Knife.HitFlesh", this.client);
+	}
+
+	void ClearBleed()
+	{
+		this.bleedtotal = -1;
+		StopTimer(this.bleedtimer);
+	}
 }
 
 Player g_Player[MAXPLAYERS + 1];
@@ -813,6 +840,29 @@ public Action Timer_SetOnFire(Handle timer, any data)
 	AttachParticle(client, "buildingdamage_dispenser_fire1", 1.0, "flag");
 	SDKHooks_TakeDamage(client, 0, 0, 15.0, DMG_BURN);
 	EmitGameSoundToAll("General.BurningFlesh", client);
+	g_Player[client].RegenTimer();
+
+	return Plugin_Continue;
+}
+
+public Action Timer_BleedClient(Handle timer, any data)
+{
+	int client = data;
+
+	g_Player[client].bleedtotal--;
+
+	if (g_Player[client].bleedtotal <= 0 || !IsClientInGame(client) || !IsPlayerAlive(client) || GetClientTeam(client) != TEAM_SURVIVORS)
+	{
+		g_Player[client].bleedtimer = null;
+		return Plugin_Stop;
+	}
+
+	float origin[3];
+	GetClientEyePosition(client, origin);
+
+	AttachParticle(client, "blood_impact_red_01", 1.0, "flag");
+	SDKHooks_TakeDamage(client, 0, 0, 15.0, DMG_SLASH);
+	g_Player[client].RegenTimer();
 
 	return Plugin_Continue;
 }
@@ -2956,7 +3006,7 @@ public void OnZombieThink(int entity)
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			g_Player[target].SetOnFire();
 		else if (type == GetZombieTypeByName("Spikey Bois"))
-			TF2_AddCondition(target, TFCond_Bleeding, 6.0);
+			g_Player[target].Bleed();
 
 		g_Player[target].RegenTimer();
 	}
@@ -3569,9 +3619,9 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 		int type = g_Player[attacker].type;
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
-			TF2_AddCondition(victim, TFCond_OnFire, 6.0);
+			g_Player[victim].SetOnFire();
 		else if (type == GetZombieTypeByName("Spikey Bois"))
-			TF2_AddCondition(victim, TFCond_Bleeding, 6.0);
+			g_Player[victim].Bleed();
 		
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", victim);
 		g_Player[victim].RegenTimer();
