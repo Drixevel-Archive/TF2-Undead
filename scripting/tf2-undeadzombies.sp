@@ -5051,9 +5051,10 @@ void OnBuildingTick(int entity)
 //Misc
 void KillAllZombies()
 {
-	int entity = -1;
+	int entity = -1; CBaseNPC npc;
 	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
-		OnZombieDeath(entity);
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(ZOMBIE_DEFAULT))
+			OnZombieDeath(entity);
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
