@@ -280,6 +280,24 @@ enum struct Match
 
 		this.powerups_cooldown = -1;
 	}
+
+	void PauseZombies()
+	{
+		this.pausezombies = true;
+
+		for (int i = 1; i <= MaxClients; i++)
+			if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_ZOMBIES)
+				TF2_AddCondition(i, TFCond_FreezeInput);
+	}
+
+	void UnpauseZombies()
+	{
+		this.pausezombies = false;
+		
+		for (int i = 1; i <= MaxClients; i++)
+			if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_ZOMBIES)
+				TF2_RemoveCondition(i, TFCond_FreezeInput);
+	}
 }
 
 Match g_Match;
@@ -1742,7 +1760,7 @@ public void OnMapEnd()
 	StopTimer(g_WaveTimer);
 
 	g_Match.pausetimer = false;
-	g_Match.pausezombies = false;
+	g_Match.UnpauseZombies = false;
 
 	g_Match.secret_door_unlocked = false;
 	g_Match.bomb_heads = false;
@@ -2387,7 +2405,7 @@ void SpawnWave(int amount)
 	int total = amount;
 	int special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
-	float origin[3]; int failsafe;
+	float origin[3];
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i) || IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES || total <= 0)
@@ -2404,15 +2422,8 @@ void SpawnWave(int amount)
 		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
 
-			failsafe = 0;
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round && failsafe < 50)
-			{
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
 				special = GetRandomInt(1, g_TotalZombieTypes - 1);
-				failsafe++;
-			}
-
-			if (failsafe >= 50)
-				special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		}
 		
 		ApplySpecialUpdates(i, special, origin);
@@ -2420,7 +2431,6 @@ void SpawnWave(int amount)
 		total--;
 	}
 
-	special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 	for (int i = 0; i < total; i++)
 	{
 		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
@@ -2429,15 +2439,8 @@ void SpawnWave(int amount)
 		{
 			special = GetRandomInt(1, g_TotalZombieTypes - 1);
 
-			failsafe = 0;
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round && failsafe < 50)
-			{
+			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
 				special = GetRandomInt(1, g_TotalZombieTypes - 1);
-				failsafe++;
-			}
-
-			if (failsafe >= 50)
-				special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 		}
 		
 		SpawnRandomZombie(special);
@@ -2873,6 +2876,9 @@ int TF2_AttachProp(int iClient, const char[] model)
 
 public Action Timer_ZombieTicks(Handle timer)
 {
+	if (g_Match.pausezombies)
+		return Plugin_Continue;
+	
 	int entity; CBaseNPC npc;
 	for (int i = 0; i < MAX_NPCS; i++)
 	{
@@ -2881,10 +2887,9 @@ public Action Timer_ZombieTicks(Handle timer)
 		
 		if (npc == INVALID_NPC)
 			continue;
-				
-		if (!g_Match.pausezombies)
-			if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
-				OnEngiZombieTick(entity);
+		
+		if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
+			OnEngiZombieTick(entity);
 	}
 
 	for (int i = 1; i <= MaxClients; i++)
@@ -2895,6 +2900,8 @@ public Action Timer_ZombieTicks(Handle timer)
 		if (g_Player[i].type == GetZombieTypeByName("Strapped Engis"))
 			OnEngiZombieTick(i);
 	}
+
+	return Plugin_Continue;
 }
 
 void OnEngiZombieTick(int entity)
@@ -3308,7 +3315,7 @@ public Action Command_StartMatch(int client, int args)
 
 	g_Match.roundtime = 5;
 	g_Match.pausetimer = false;
-	g_Match.pausezombies = false;
+	g_Match.UnpauseZombies();
 
 	CPrintToChatAll("{haunted}%N {default}has started the match.", client);
 
@@ -3377,6 +3384,9 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 		}
 
 		g_Player[client].type = GetZombieTypeByName(ZOMBIE_DEFAULT);
+
+		if (g_Match.pausezombies)
+			TF2_AddCondition(client, TFCond_FreezeInput);
 	}
 	else
 	{
@@ -3500,8 +3510,9 @@ public Action Command_PauseTimer(int client, int args)
 	}
 
 	g_Match.pausetimer = true;
-	g_Match.pausezombies = true;
+	g_Match.PauseZombies();
 	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
+
 	return Plugin_Handled;
 }
 
@@ -3514,8 +3525,9 @@ public Action Command_UnpauseTimer(int client, int args)
 	}
 
 	g_Match.pausetimer = false;
-	g_Match.pausezombies = false;
+	g_Match.UnpauseZombies();
 	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
+
 	return Plugin_Handled;
 }
 
@@ -3527,8 +3539,9 @@ public Action Command_PauseZombies(int client, int args)
 		return Plugin_Handled;
 	}
 
-	g_Match.pausezombies = true;
+	g_Match.PauseZombies();
 	CPrintToChatAll("%N has {haunted}%sfrozen {default}the zombies.", client, g_Match.pausezombies ? "" : "un");
+
 	return Plugin_Handled;
 }
 
@@ -3540,8 +3553,9 @@ public Action Command_UnpauseZombies(int client, int args)
 		return Plugin_Handled;
 	}
 
-	g_Match.pausezombies = false;
+	g_Match.UnpauseZombies();
 	CPrintToChatAll("%N has {haunted}%sfrozen {default}the zombies.", client, g_Match.pausezombies ? "" : "un");
+
 	return Plugin_Handled;
 }
 
@@ -4859,6 +4873,9 @@ void OnPlankTick(int entity)
 	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
 
 	OnPlankSurvivorTick(entity, disabled);
+
+	if (g_Match.pausezombies)
+		return;
 	
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -5939,7 +5956,7 @@ public Action Command_SetRound(int client, int args)
 void SetupSpecials()
 {
 	g_TotalZombieTypes = 0;
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Common", "A common garden variety zombie.");
+	g_ZombieTypes[g_TotalZombieTypes].CreateZombie(ZOMBIE_DEFAULT, "A common garden variety zombie.");
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Scoots", "A very fast zombie!", 100, 1, -1, 0.8, 350.0, {255, 255, 255, 255}, "", "", "bombinomicon_airwaves", 2);
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail", 10);
 	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "", 4);
