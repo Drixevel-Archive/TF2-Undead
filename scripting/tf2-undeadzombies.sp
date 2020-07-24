@@ -1173,6 +1173,7 @@ public void OnPluginStart()
 	Database.Connect(OnSQLConnect, "default");
 
 	RegAdminCmd("sm_testanim", Command_TestAnim, ADMFLAG_ROOT);
+	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
 	RegConsoleCmd("sm_gamemode", Command_MainMenu);
@@ -2424,16 +2425,7 @@ void SpawnWave(int amount)
 		TeleportEntity(i, origin, NULL_VECTOR, NULL_VECTOR);
 		g_Player[i].sounds = GetZombieSoundDuration(i);
 
-		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
-
-		if (GetRandomFloat(0.0, 1000.0) >= 950.0)
-		{
-			special = GetRandomInt(1, g_TotalZombieTypes - 1);
-
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
-				special = GetRandomInt(1, g_TotalZombieTypes - 1);
-		}
-		
+		special = GetZombieType();
 		ApplySpecialUpdates(i, special, origin);
 
 		total--;
@@ -2441,18 +2433,28 @@ void SpawnWave(int amount)
 
 	for (int i = 0; i < total; i++)
 	{
-		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
-
-		if (GetRandomFloat(0.0, 1000.0) >= 950.0)
-		{
-			special = GetRandomInt(1, g_TotalZombieTypes - 1);
-
-			while (g_ZombieTypes[special].unlock_wave != -1 && g_ZombieTypes[special].unlock_wave < g_Match.round)
-				special = GetRandomInt(1, g_TotalZombieTypes - 1);
-		}
-		
+		special = GetZombieType();
 		SpawnRandomZombie(special);
 	}
+}
+
+int GetZombieType()
+{
+	if (GetRandomFloat(0.0, 1000.0) < 950.0)
+		return GetZombieTypeByName(ZOMBIE_DEFAULT);
+	
+	int specials[32];
+	int total;
+
+	for (int i = 1; i < g_TotalZombieTypes; i++)
+	{
+		if (g_ZombieTypes[i].unlock_wave != -1 && g_ZombieTypes[i].unlock_wave > g_Match.round)
+			continue;
+		
+		specials[total++] = i;
+	}
+
+	return (total == 0) ? GetZombieTypeByName(ZOMBIE_DEFAULT) : specials[GetRandomInt(0, total - 1)];
 }
 
 bool GetRandomSpawn(float origin[3])
@@ -2720,7 +2722,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.iTeamNum = team;
 	npc.flGravity = 800.0;
 	npc.flAcceleration = 4000.0;
-	npc.flJumpHeight = 85.0;
+	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
 	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;
@@ -2768,14 +2770,14 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
-		npc.nSize = GetRandomFloat(1.0, 1.2);
+		npc.nSize = GetRandomFloat(1.0, 1.0);
 		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
 		FixZombieCollisions(npc);
 
 		int color[3];
-		color[0] = GetRandomInt(0, 255);
-		color[1] = GetRandomInt(0, 255);
-		color[1] = GetRandomInt(0, 255);
+		color[0] = GetRandomInt(255, 255);
+		color[1] = GetRandomInt(255, 255);
+		color[1] = GetRandomInt(255, 255);
 
 		SetEntityRenderMode(entity, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(entity, color[0], color[1], color[2], 255);
@@ -5998,7 +6000,6 @@ float[] PredictSubjectPosition(CBaseNPC npc, int subject)
 	AddVectors(subjectPos, lead, pathTarget);
 
 	// validate this destination
-
 	NextBotGroundLocomotion loco = npc.GetLocomotion();
 	
 	// don't lead through walls
@@ -6588,4 +6589,42 @@ public Action Command_VoteDifficulty(int client, int args)
 {
 
 	return Plugin_Handled;
+}
+
+public Action Command_WaveInfo(int client, int args)
+{
+	OpenWaveInfoPanel(client);
+	return Plugin_Handled;
+}
+
+void OpenWaveInfoPanel(int client)
+{
+	Panel panel = new Panel();
+
+	char title[64];
+	FormatEx(title, sizeof(title), "Wave %i - Difficulty: %s", g_Match.round, g_Difficulty[g_Match.difficulty].name);
+	panel.SetTitle(title);
+
+	char text[64];
+	for (int i = 0; i < g_TotalZombieTypes; i++)
+	{
+		FormatEx(text, sizeof(text), "%s: %s (%i)", g_ZombieTypes[i].name, (g_ZombieTypes[i].unlock_wave == -1 || g_ZombieTypes[i].unlock_wave <= g_Match.round) ? "Unlocked" : "Locked", g_ZombieTypes[i].unlock_wave);
+		panel.DrawText(text);
+	}
+
+	panel.DrawItem("Reload Info");
+	panel.DrawItem("Exit Panel");
+
+	panel.Send(client, MenuHandler_WaveInfo, MENU_TIME_FOREVER);
+	delete panel;
+}
+
+public int MenuHandler_WaveInfo(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+			if (param2 == 1)
+				OpenWaveInfoPanel(param1);
+	}
 }
