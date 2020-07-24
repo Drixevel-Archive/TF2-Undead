@@ -4268,6 +4268,10 @@ void OnWeaponTick(int entity)
 	TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "classes", sClasses, sizeof(sClasses));
 	sClasses[0] = CharToUpper(sClasses[0]);
 
+	//float origin[3];
+	//GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+	//CreatePointGlow(origin);
+
 	char sRepurchase[16];
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -4276,7 +4280,7 @@ void OnWeaponTick(int entity)
 		
 		sRepurchase[0] = '\0';
 
-		if (IsVisibleTo(i, entity, 90.0, true))
+		if (IsVisibleTo(i, entity, 45.0, true))
 		{
 			if (unlock <= g_Match.round + 1)
 			{
@@ -6241,9 +6245,9 @@ void PlayZombieSound(int entity)
 	EmitSoundToAll(sSound, entity);
 }
 
-stock void CreatePointGlow(float origin[3], float time = 0.95)
+stock void CreatePointGlow(float origin[3], float time = 0.95, float size = 0.5, int brightness = 50)
 {
-	TE_SetupGlowSprite(origin, g_GlowSprite, time, 1.0, 50);
+	TE_SetupGlowSprite(origin, g_GlowSprite, time, size, brightness);
 	TE_SendToAll();
 }
 
