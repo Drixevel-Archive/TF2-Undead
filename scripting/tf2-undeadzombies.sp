@@ -5996,6 +5996,31 @@ float[] PredictSubjectPosition(CBaseNPC npc, int subject)
 	// compute our desired destination
 	float pathTarget[3];
 	AddVectors(subjectPos, lead, pathTarget);
+
+	// validate this destination
+
+	NextBotGroundLocomotion loco = npc.GetLocomotion();
+	
+	// don't lead through walls
+	if (GetVectorLength(lead, true) > 36.0)
+	{
+		float fraction;
+		if (!loco.IsPotentiallyTraversable(subjectPos, pathTarget, IMMEDIATELY, fraction))
+		{
+			// tried to lead through an unwalkable area - clip to walkable space
+			pathTarget[0] = subjectPos[0] + fraction * (pathTarget[0] - subjectPos[0]);
+			pathTarget[1] = subjectPos[1] + fraction * (pathTarget[1] - subjectPos[1]);
+			pathTarget[2] = subjectPos[2] + fraction * (pathTarget[2] - subjectPos[2]);
+		}
+	}
+	
+	CNavArea leadArea = TheNavMesh.GetNearestNavArea(pathTarget);
+	
+	if (leadArea == NULL_AREA || leadArea.GetZ(pathTarget[0], pathTarget[1]) < pathTarget[2] - loco.GetMaxJumpHeight())
+	{
+		// would fall off a cliff
+		return subjectPos;
+	}
 	
 	return pathTarget;
 }
@@ -6057,12 +6082,12 @@ public Action Command_StopDebugWeapons(int client, int args)
 
 float CalculateSpeed(int special)
 {
-	float speed = g_ZombieTypes[special].speed;
+	float basespeed = g_ZombieTypes[special].speed;
 
-	if (speed == -1.0)
-		speed = ZOMBIE_BASE_SPEED;
-	
-	return (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
+	if (basespeed == -1.0)
+		basespeed = ZOMBIE_BASE_SPEED;
+		
+	return (basespeed + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
 }
 
 int CalculateHealth(int entity)

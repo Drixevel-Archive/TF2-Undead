@@ -135,7 +135,7 @@ methodmap CNavMesh
 	public native CNavArea GetNearestNavArea(const float pos[3], bool anyZ = false, float maxDist = 10000.0, bool checkLOS = false, bool checkGround = true, int team = -2);
 };
 
-//CNavMesh TheNavMesh;
+CNavMesh TheNavMesh;
 
 methodmap CTNavArea
 {
@@ -388,7 +388,7 @@ methodmap ILocomotion < INextBotComponent
 	public native bool IsAreaTraversable(CNavArea area);
 	public native float GetTraversableSlopeLimit();
 
-	public native bool IsPotentiallyTraversable(const float from[3], const float to[3], TraverseWhenType when);
+	public native bool IsPotentiallyTraversable(const float from[3], const float to[3], TraverseWhenType when, float &fraction = -1.0);
 	public native bool HasPotentialGap(const float from[3], const float to[3]);
 	public native bool IsGap(const float from[3], const float to[3]);
 	public native bool IsEntityTraversable(int entity, TraverseWhenType when);
