@@ -2581,14 +2581,14 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 
 	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
-		float size = GetRandomFloat(0.8, 1.2);
+		float size = GetRandomFloat(1.0, 1.0);
 		SetEntPropFloat(client, Prop_Send, "m_flModelScale", size);
 		SetEntPropFloat(client, Prop_Send, "m_flStepSize", 18.0 * size);
 
 		int color[3];
-		color[0] = GetRandomInt(0, 255);
-		color[1] = GetRandomInt(0, 255);
-		color[1] = GetRandomInt(0, 255);
+		color[0] = GetRandomInt(255, 255);
+		color[1] = GetRandomInt(255, 255);
+		color[2] = GetRandomInt(255, 255);
 
 		SetEntityRenderMode(client, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(client, color[0], color[1], color[2], 255);
