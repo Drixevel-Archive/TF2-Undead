@@ -2728,13 +2728,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
 
-	float speed = g_ZombieTypes[special].speed;
-
-	if (speed == -1.0)
-		speed = 150.0;
-	
-	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
-	
+	float speed = CalculateSpeed(special);
 	npc.flWalkSpeed = speed;
 	npc.flRunSpeed = speed;
 
@@ -3006,13 +3000,7 @@ public void OnZombieThink(int entity)
 		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX);
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
 		
-		float damage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier;
-
-		if (g_Match.round >= 20)
-			damage *= 2.0;
-		else if (g_Match.round >= 15)
-			damage *= 1.5;
-		
+		float damage = CalculateDamage();
 		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
 		
 		SpeakResponseConcept(target, "TLK_PLAYER_PAIN");
@@ -3595,13 +3583,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 	if (attacker > 0)
 		GetEntityClassname(attacker, class, sizeof(class));
 
-	if (g_Match.roundphase == PHASE_STARTING)
-	{
-		damage = IsDrixevel(attacker) ? 99999.0 : 0.0;
-		return Plugin_Changed;
-	}
-
-	if (StrEqual(class, "base_boss", false))
+	if (g_Match.roundphase == PHASE_STARTING || StrEqual(class, "base_boss", false))
 	{
 		damage = 0.0;
 		return Plugin_Changed;
@@ -3629,13 +3611,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 	
 	if (attacker > 0 && attacker <= MaxClients && GetClientTeam(attacker) == TEAM_ZOMBIES)
 	{
-		damage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier;
-
-		if (g_Match.round >= 20)
-			damage *= 2.0;
-		else if (g_Match.round >= 15)
-			damage *= 1.5;
-		
+		damage = CalculateDamage();
 		changed = true;
 		
 		SpeakResponseConcept(victim, "TLK_PLAYER_PAIN");
@@ -4875,27 +4851,24 @@ void OnPlankTick(int entity)
 	
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES || !IsVisibleTo(i, entity, 125.0, false))
 			continue;
 				
-		if (health <= 0)
+		if (health <= 0 && disabled)
 		{
 			g_Player[i].plank_damage_tick = -1.0;
 			TF2_RemoveCondition(i, TFCond_FreezeInput);
 			continue;
 		}
-		
-		if (!disabled && IsVisibleTo(i, entity, 125.0, false) && health > 0)
+
+		float time = GetGameTime();
+		if (g_Player[i].plank_damage_tick == -1.0 || g_Player[i].plank_damage_tick != -1.0 && g_Player[i].plank_damage_tick <= time)
 		{
-			float time = GetGameTime();
-			if (g_Player[i].plank_damage_tick == -1.0 || g_Player[i].plank_damage_tick != -1.0 && g_Player[i].plank_damage_tick <= time)
-			{
-				DamagePlank(entity, GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier);
-				g_Player[i].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
-			}
-			
-			TF2_AddCondition(i, TFCond_FreezeInput);
+			DamagePlank(entity, CalculateDamage());
+			g_Player[i].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
 		}
+		
+		TF2_AddCondition(i, TFCond_FreezeInput);
 	}
 	
 	int zombie = -1;
@@ -4906,36 +4879,28 @@ void OnPlankTick(int entity)
 
 		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(zombie);
 
-		if (health <= 0 && disabled)
+		if (health <= 0 && disabled || g_Zombies[npc.Index].insidemap)
 		{
 			g_Zombies[npc.Index].plank_damage_tick = -1.0;
 			npc.flRunSpeed = g_Zombies[npc.Index].speed;
 			continue;
 		}
 
-		if (!g_Zombies[npc.Index].insidemap)
+		float time = GetGameTime();
+		if (g_Zombies[npc.Index].plank_damage_tick == -1.0 || g_Zombies[npc.Index].plank_damage_tick != -1.0 && g_Zombies[npc.Index].plank_damage_tick <= time)
 		{
-			float time = GetGameTime();
-			if (g_Zombies[npc.Index].plank_damage_tick == -1.0 || g_Zombies[npc.Index].plank_damage_tick != -1.0 && g_Zombies[npc.Index].plank_damage_tick <= time)
-			{
-				CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(zombie);
-				int iSequence = animationEntity.LookupSequence("throw_fire");
-				animationEntity.AddGestureSequence(iSequence);
+			CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(zombie);
+			int iSequence = animationEntity.LookupSequence("throw_fire");
+			animationEntity.AddGestureSequence(iSequence);
 
-				NextBotGroundLocomotion loco = npc.GetLocomotion();
-				loco.FaceTowards(fOrigin);
+			NextBotGroundLocomotion loco = npc.GetLocomotion();
+			loco.FaceTowards(fOrigin);
 
-				DamagePlank(entity, GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier);
-				g_Zombies[npc.Index].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
-			}
-
-			npc.flRunSpeed = 0.0;
+			DamagePlank(entity, CalculateDamage());
+			g_Zombies[npc.Index].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
 		}
-		else
-		{
-			g_Zombies[npc.Index].plank_damage_tick = -1.0;
-			npc.flRunSpeed = g_Zombies[npc.Index].speed;
-		}
+
+		npc.flRunSpeed = 0.0;
 	}
 }
 
@@ -6084,6 +6049,18 @@ public Action Command_StopDebugWeapons(int client, int args)
 	return Plugin_Handled;
 }
 
+float CalculateSpeed(int special)
+{
+	float speed = g_ZombieTypes[special].speed;
+
+	if (speed == -1.0)
+		speed = 150.0;
+	
+	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
+
+	return speed;
+}
+
 int CalculateHealth(int entity)
 {
 	if (entity > 0 && entity <= MaxClients && GetClientTeam(entity) != TEAM_ZOMBIES)
@@ -6113,9 +6090,23 @@ int CalculateHealth(int entity)
 	}
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
-	int health = (basehealth + (g_Match.round * 2));
+	return (basehealth + (g_Match.round * 2));
+}
 
-	return health;
+float CalculateDamage()
+{
+	float damage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier;
+
+	if (g_Match.round >= 30)
+		damage *= 3.0;
+	else if (g_Match.round >= 25)
+		damage *= 2.5;
+	else if (g_Match.round >= 20)
+		damage *= 2.0;
+	else if (g_Match.round >= 15)
+		damage *= 1.5;
+	
+	return damage;
 }
 
 public Action Command_TestAnim(int client, int args)
