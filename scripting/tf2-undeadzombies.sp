@@ -3783,18 +3783,6 @@ public Action OnClientCommand(int client, int args)
 	return Plugin_Continue;
 }
 
-public Action Timer_SwitchToRed(Handle timer, any data)
-{
-	int client = data;
-	FakeClientCommand(client, "jointeam 2");
-}
-
-public Action Timer_SwitchToBlue(Handle timer, any data)
-{
-	int client = data;
-	FakeClientCommand(client, "jointeam 3");
-}
-
 public void OnGameFrame()
 {
 	if (g_Match.pausetimer)
@@ -3805,11 +3793,9 @@ public void OnGameFrame()
 	{
 		if (g_Machines[entity].index != -1)
 			OnMachineTick(entity);
-		
-		if (g_SpawnedWeapons[entity].index != -1)
+		else if (g_SpawnedWeapons[entity].index != -1)
 			OnWeaponTick(entity);
-		
-		if (g_SecretBox[entity].status)
+		else if (g_SecretBox[entity].status)
 			OnSecretBoxTick(entity);
 	}
 
