@@ -64,6 +64,8 @@
 #define ZOMBIE_DAMAGE_MIN 2.0
 #define ZOMBIE_DAMAGE_MAX 8.0
 
+#define ZOMBIE_BASE_SPEED 150.0
+
 #define INTERACT_SUCCESS 0
 #define INTERACT_INSUFFICIENTFUNDS 1
 #define INTERACT_MAXREACHED 2
@@ -6054,11 +6056,9 @@ float CalculateSpeed(int special)
 	float speed = g_ZombieTypes[special].speed;
 
 	if (speed == -1.0)
-		speed = 150.0;
+		speed = ZOMBIE_BASE_SPEED;
 	
-	speed *= (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
-
-	return speed;
+	return (1.0 + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
 }
 
 int CalculateHealth(int entity)
@@ -6095,7 +6095,8 @@ int CalculateHealth(int entity)
 
 float CalculateDamage()
 {
-	float damage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX) * g_Difficulty[g_Match.difficulty].damage_multiplier;
+	float basedamage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX);
+	float damage = basedamage * g_Difficulty[g_Match.difficulty].damage_multiplier;
 
 	if (g_Match.round >= 30)
 		damage *= 3.0;
@@ -6105,6 +6106,10 @@ float CalculateDamage()
 		damage *= 2.0;
 	else if (g_Match.round >= 15)
 		damage *= 1.5;
+	else if (g_Match.round >= 10)
+		damage *= 1.3;
+	else if (g_Match.round >= 5)
+		damage *= 1.2;
 	
 	return damage;
 }
