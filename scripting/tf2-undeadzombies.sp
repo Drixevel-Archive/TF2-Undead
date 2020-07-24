@@ -116,6 +116,13 @@ int g_GlobalTarget = -1;
 ArrayList statistics;
 StringMap statisticsnames;
 
+int g_InteractableType[MAX_ENTITY_LIMIT + 1]; //Types of Interactables
+int g_WeaponIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Weapon indexes
+float g_RebuildDelay[MAX_ENTITY_LIMIT + 1] = {-1.0, ...}; //Planks
+int g_PowerupIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Powerup Index
+int g_RechargeBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Buildings
+int g_DisableBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Buildings
+
 char sModels[10][PLATFORM_MAX_PATH] =
 {
 	"",
@@ -324,12 +331,6 @@ enum struct CustomWeapons
 }
 
 CustomWeapons g_SpawnedWeapons[MAX_ENTITY_LIMIT + 1];
-int g_WeaponIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...};
-
-int g_InteractableType[MAX_ENTITY_LIMIT + 1];
-
-//Planks
-float g_RebuildDelay[MAX_ENTITY_LIMIT + 1] = {-1.0, ...};
 
 //Player Data
 enum struct Player
@@ -517,6 +518,7 @@ enum struct Player
 		this.bleedtimer = null;
 	}
 
+	//attached particles
 	int AttachParticle(const char[] particle, float time = 0.0, const char[] attachment)
 	{
 		this.KillParticle();
@@ -532,6 +534,7 @@ enum struct Player
 		this.particle = INVALID_ENT_REFERENCE;
 	}
 
+	//glows for zombies
 	int CreateGlow()
 	{
 		this.ClearGlow();
@@ -551,6 +554,7 @@ enum struct Player
 		this.glow = INVALID_ENT_REFERENCE;
 	}
 
+	//statistics
 	int GetStat(const char[] stat)
 	{
 		int value;
@@ -593,6 +597,7 @@ enum struct Player
 		this.stats.Clear();
 	}
 
+	//points
 	void SetPoints(int value)
 	{
 		this.points = value;
@@ -620,6 +625,7 @@ enum struct Player
 		return true;
 	}
 	
+	//perks
 	void AddPerk(const char[] name)
 	{
 		this.perks.PushString(name);
@@ -741,17 +747,20 @@ enum struct Player
 		this.perks.Clear();
 	}
 
+	//regen timer
 	void RegenTimer(float time = 4.0)
 	{
 		StopTimer(this.regentimer);
 		this.regentimer = CreateTimer(time, Timer_Regen, this.client, TIMER_FLAG_NO_MAPCHANGE);
 	}
 
+	//death sounds
 	void AddDeathSound(const char[] sound)
 	{
 		strcopy(this.death_sound, PLATFORM_MAX_PATH, sound);
 	}
 
+	//attached building
 	int AttachBuilding(const char[] entity, float origin[3])
 	{
 		this.KillBuilding();	
@@ -796,6 +805,7 @@ enum struct Player
 		this.building = -1;
 	}
 
+	//set on fire
 	void SetOnFire(float ticks = 1.0, int total = 6)
 	{
 		if (!IsPlayerAlive(this.client))
@@ -814,6 +824,7 @@ enum struct Player
 		StopTimer(this.firetimer);
 	}
 
+	//bleed target
 	void Bleed(float ticks = 1.0, int total = 6)
 	{
 		if (!IsPlayerAlive(this.client))
@@ -883,7 +894,7 @@ public Action Timer_BleedClient(Handle timer, any data)
 	GetClientEyePosition(client, origin);
 
 	AttachParticle(client, "blood_impact_red_01", 1.0, "flag");
-	SDKHooks_TakeDamage(client, 0, 0, 15.0, DMG_SLASH);
+	SDKHooks_TakeDamage(client, 0, 0, 10.0, DMG_SLASH);
 	g_Player[client].RegenTimer();
 
 	return Plugin_Continue;
@@ -1095,11 +1106,6 @@ enum struct Powerups
 	}
 }
 Powerups g_Powerups[MAX_POWERUPS];
-int g_PowerupIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...};
-
-//Buildings
-int g_RechargeBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...};
-int g_DisableBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...};
 
 //Special Zombies
 int g_TotalZombieTypes;
