@@ -3827,10 +3827,11 @@ public Action TF2_OnCallMedic(int client)
 		return Plugin_Stop;
 	
 	g_Player[client].interact = GetTime() + 2;
+	int near = g_Player[client].nearinteractable;
 
-	if (g_Player[client].nearinteractable != -1 && g_InteractableType[g_Player[client].nearinteractable] == INTERACTABLE_TYPE_MACHINE)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MACHINE)
 	{
-		int entity = g_Player[client].nearinteractable;
+		int entity = near;
 		int index = g_Machines[entity].index;
 
 		if (!g_Player[client].RemovePoints(g_Machines[entity].price))
@@ -3854,7 +3855,7 @@ public Action TF2_OnCallMedic(int client)
 
 			char sSound[PLATFORM_MAX_PATH];
 			FormatEx(sSound, sizeof(sSound), "undead/machines/%s.wav", g_MachinesData[index].name);
-			EmitSoundToAll(sSound, g_Player[client].nearinteractable, SNDCHAN_AUTO, SNDLEVEL_TRAIN, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, g_Player[client].nearinteractable, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+			EmitSoundToAll(sSound, entity, SNDCHAN_AUTO, SNDLEVEL_TRAIN, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, entity, NULL_VECTOR, NULL_VECTOR, true, 0.0);
 
 			g_Player[client].AddPerk(g_MachinesData[index].name);
 			CPrintToChat(client, "You have purchased the Machine perk: {haunted}%s", g_MachinesData[index].display);
@@ -3867,9 +3868,9 @@ public Action TF2_OnCallMedic(int client)
 		}
 	}
 
-	if (g_Player[client].nearinteractable != -1 && g_InteractableType[g_Player[client].nearinteractable] == INTERACTABLE_TYPE_WEAPON)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_WEAPON)
 	{
-		int entity = g_Player[client].nearinteractable;
+		int entity = near;
 		int index = g_SpawnedWeapons[entity].index;
 
 		char sClasses[2048];
@@ -3910,9 +3911,9 @@ public Action TF2_OnCallMedic(int client)
 		}
 	}
 
-	if (g_Player[client].nearinteractable != -1 && g_InteractableType[g_Player[client].nearinteractable] == INTERACTABLE_TYPE_SECRETBOX)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_SECRETBOX)
 	{
-		int entity = g_Player[client].nearinteractable;
+		int entity = near;
 
 		if (g_SecretBox[entity].inuse || !g_Player[client].RemovePoints(g_SecretBox[entity].price))
 		{
@@ -3928,13 +3929,14 @@ public Action TF2_OnCallMedic(int client)
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_SECRETBOXES, 1);
 
+			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
 		}
 	}
 
-	if (g_Player[client].nearinteractable != -1 && g_InteractableType[g_Player[client].nearinteractable] == INTERACTABLE_TYPE_PLANK)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_PLANK)
 	{
-		int entity = g_Player[client].nearinteractable;
+		int entity = near;
 
 		if (!GetEntProp(entity, Prop_Data, "m_iDisabled") || (g_RebuildDelay[entity] != -1.0 && g_RebuildDelay[entity] > GetGameTime()))
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
@@ -3949,13 +3951,14 @@ public Action TF2_OnCallMedic(int client)
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_PLANKS, 1);
 
+			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
 		}
 	}
 	
-	if (g_Player[client].nearinteractable != -1 && g_InteractableType[g_Player[client].nearinteractable] == INTERACTABLE_TYPE_BUILDING)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_BUILDING)
 	{
-		int entity = g_Player[client].nearinteractable;
+		int entity = near;
 	
 		char sCost[64];
 		GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
@@ -3978,6 +3981,7 @@ public Action TF2_OnCallMedic(int client)
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_BUILDINGS, 1);
 			
+			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
 		}
 	}
@@ -4891,12 +4895,12 @@ void OnPlankTick(int entity)
 	int zombie = -1;
 	while ((zombie = FindEntityByClassname(zombie, "base_boss")) != -1)
 	{
-		if (!IsEntVisibleTo(zombie, entity, 250.0))
+		if (!IsEntVisibleTo(zombie, entity, 100.0))
 			continue;
 
 		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(zombie);
 
-		if (health <= 0)
+		if (health <= 0 && disabled)
 		{
 			g_Zombies[npc.Index].plank_damage_tick = -1.0;
 			npc.flRunSpeed = g_Zombies[npc.Index].speed;
@@ -5326,12 +5330,15 @@ bool IsEntVisibleTo(int entity, int target, float maxdistance = 0.0, float z_axi
 {
 	if (entity <= MaxClients || !IsValidEntity(entity) || !IsValidEntity(target))
 		return false;
-	 
+
+	// CBaseNPC npc;
+	// if ((npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
+	// 	return true;
+
+	CBaseAnimating anim = CBaseAnimating(entity);
+
 	float vOrigin[3];
-	if (HasEntProp(entity, Prop_Send, "m_vecAbsOrigin"))
-		GetEntPropVector(entity, Prop_Send, "m_vecAbsOrigin", vOrigin);
-	else
-		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vOrigin);
+	anim.WorldSpaceCenter(vOrigin);
 	
 	float vEnt[3];
 	if (HasEntProp(target, Prop_Send, "m_vecAbsOrigin"))
