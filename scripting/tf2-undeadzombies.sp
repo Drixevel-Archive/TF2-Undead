@@ -5162,15 +5162,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			float time = GetGameTime();
 			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
 			{
-				char sHint[128];
-				FormatEx(sHint, sizeof(sHint), "Reviving %N\n<", iOwner);
-
-				for (int i = 0; i < iMaxHealth / 4; i++)
-					Format(sHint, sizeof(sHint), "%s%s", sHint, (iHealth / 4) > i ? "/" : "|");
-				
-				PrintHintText(client, "%s>", sHint);
-
-				g_Player[client].delayhint = time + 0.1;
+				PrintHintText(client, "Reviving %N...", iOwner);
+				g_Player[client].delayhint = time + 0.2;
 			}
 
 			SetEntProp(entity, Prop_Send, "m_iHealth", iHealth + 1);
