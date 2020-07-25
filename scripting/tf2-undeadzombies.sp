@@ -5733,7 +5733,7 @@ public Action Timer_Delete(Handle timer, any data)
 {
 	int entity = -1;
 	if ((entity = EntRefToEntIndex(data)) != -1)
-		AcceptEntityInput(entity, "KillHeirarchy");
+		AcceptEntityInput(entity, "Kill");
 }
 
 public Action Command_Difficulty(int client, int args)
