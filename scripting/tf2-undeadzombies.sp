@@ -1,14 +1,3 @@
-/*
-- Zombies inside each other walking in the same path
-- Zombies stuck in the standing animation
-- Max Ammo sometimes doesn't refill any ammo
-- Max Ammo doesn't refill any ammo on completely drained weapons
-*/
-
-/*
-	
-*/
-
 /*****************************/
 //Pragma
 #pragma semicolon 1
@@ -2259,6 +2248,8 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 				
 				if ((weapon = GetPlayerWeaponSlot(client, 2)) != -1)
 					g_Player[client].melee = g_WeaponIndex[weapon];
+				
+				TF2_CreateAnnotationToAll(vecOrigin, "Stand Here...", 10.0, "vo/null.wav");
 			}
 		}
 
@@ -2292,6 +2283,32 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 			g_Player[attacker].AddStat(STAT_KILLS, 1);
 
 		CreateTimer(0.5, Timer_ParseRoundEnd, _, TIMER_FLAG_NO_MAPCHANGE);
+	}
+}
+
+void TF2_CreateAnnotationToAll(float origin[3], const char[] text, float lifetime = 10.0, const char[] sound = "vo/null.wav")
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i))
+			continue;
+	
+		Event event = CreateEvent("show_annotation");
+		
+		if (event == null)
+			continue;
+		
+		event.SetFloat("worldPosX", origin[0]);
+		event.SetFloat("worldPosY", origin[1]);
+		event.SetFloat("worldPosZ", origin[2]);
+		//event.SetInt("follow_entindex", i);
+		event.SetFloat("lifetime", lifetime);
+		//event.SetInt("id", i + 8750);
+		event.SetString("text", text);
+		event.SetString("play_sound", sound);
+		event.SetString("show_effect", "0");
+		event.SetString("show_distance", "0");
+		event.Fire(false);
 	}
 }
 
@@ -3574,7 +3591,6 @@ public void OnClientPutInServer(int client)
 	SDKHook(client, SDKHook_GetMaxHealth, OnGetMaxHealth);
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
-	SDKHook(client, SDKHook_PreThink, OnClientThink);
 }
 
 public Action OnGetMaxHealth(int client, int &MaxHealth)
@@ -3671,30 +3687,16 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 		g_Player[attacker].AddPoints(doublepoints ? 20 : 10);
 }
 
-public Action OnClientThink(int client)
-{
-	/*int ground = -1;
-	if ((ground = GetEntPropEnt(client, Prop_Send, "m_hGroundEntity")) > MaxClients && g_Machines[ground].index != -1)
-		SDKHooks_TakeDamage(client, 0, 0, 5.0, DMG_SHOCK);*/
-}
-
 public void OnClientPostAdminCheck(int client)
 {
-	QueryClientConVar(client, "cl_downloadfilter", QueryConVar);
+	QueryClientConVar(client, "cl_downloadfilter", OnCheckDownloadsFilter);
 }
 
-public void QueryConVar(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
+public void OnCheckDownloadsFilter(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
 {
-	// all = download everything
-	// nosounds = download all but sounds
-	// mapsonly = only download maps, nothing else
-	// none = don't download anything
 	if (strcmp(cvarValue, "all", false) == 0 || strcmp(cvarValue, "nosounds", false) == 0)
 		return;
-
-	PrintToConsole(client, "You have your cl_downloadfilter set to [%s], please change it to [all]", cvarValue);
-	PrintToConsole(client, "You have your cl_downloadfilter set to [%s], please change it to [all]", cvarValue);
-	PrintToConsole(client, "You have your cl_downloadfilter set to [%s], please change it to [all]", cvarValue);
+	
 	KickClient(client, "Your setting for cl_downloadfilter is wrong, please set it to \"all\".");
 } 
 
@@ -3990,6 +3992,11 @@ public Action TF2_OnCallMedic(int client)
 			SetEntProp(entity, Prop_Send, "m_bDisabled", 0);
 			g_DisableBuilding[entity] = GetTime() + StringToInt(sDuration);
 			CPrintToChat(client, "You have rented this {haunted}building{default}.");
+
+			float origin[3];
+			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+
+			TF2_CreateAnnotationToAll(origin, "Building Active", StringToFloat(sDuration), "vo/null.wav");
 
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_BUILDINGS, 1);
@@ -4745,16 +4752,21 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 		return Plugin_Stop;
 	}
 
+	float origin[3];
+	GetEntityOrigin(display, origin);
+
 	if (ticks >= 15.0)
 	{
 		CloseSecretBox(display, secretbox);
 		return Plugin_Stop;
 	}
 	else if (ticks >= 5.0)
+	{
+		if (phase != 1)
+			TF2_CreateAnnotationToAll(origin, "Weapon is ready...", 10.0, "vo/null.wav");
+		
 		phase = 1;
-	
-	float origin[3];
-	GetEntityOrigin(display, origin);
+	}
 	
 	if (phase == 0)
 	{
