@@ -107,6 +107,9 @@
 /*****************************/
 //ConVars
 
+ConVar convar_Ragdolls;
+ConVar convar_BloodFx;
+
 /*****************************/
 //Globals
 bool g_Late;
@@ -1171,6 +1174,10 @@ public void OnPluginStart()
 	LoadTranslations("common.phrases");
 	CSetPrefix("{haunted}[{lawngreen}Undead{haunted}]");
 	Database.Connect(OnSQLConnect, "default");
+
+	//ConVars
+	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
 	RegAdminCmd("sm_testanim", Command_TestAnim, ADMFLAG_ROOT);
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
@@ -3119,7 +3126,7 @@ public Action OnZombiesTraceAttack(int victim, int& attacker, int& inflictor, fl
 {
 	if (hitbox == 0 && hitgroup == 1)
 	{
-		damage *= 1.25;
+		damage *= 1.10;
 		damagetype |= DMG_CRIT;
 		return Plugin_Changed;
 	}
@@ -3161,7 +3168,7 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 	if (npc == INVALID_NPC)
 		return;
 
-	if (GetRandomFloat(0.0, 100.0) >= 50.0)
+	if (convar_BloodFx.BoolValue && GetRandomFloat(0.0, 100.0) >= 50.0)
 		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
 	
 	if (GetRandomFloat(0.0, 100.0) >= 75.0)
@@ -3642,7 +3649,7 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 	if (GetClientTeam(victim) != TEAM_ZOMBIES)
 		return;
 	
-	if (GetRandomFloat(0.0, 100.0) >= 50.0)
+	if (convar_BloodFx.BoolValue && GetRandomFloat(0.0, 100.0) >= 50.0)
 		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
 	
 	if (GetRandomFloat(0.0, 100.0) >= 75.0 && IsPlayerAlive(victim))
@@ -5653,7 +5660,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 void CreateRagdoll(float origin[3], float angles[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0)
 {
-	if (g_Match.spawn_robots)
+	if (!convar_Ragdolls.BoolValue || g_Match.spawn_robots)
 		return;
 	
 	int ragdoll = CreateEntityByName("prop_ragdoll");
