@@ -3989,14 +3989,37 @@ public Action TF2_OnCallMedic(int client)
 		{
 			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
+			char sBuilding[64];
+			switch (TF2_GetObjectType(entity))
+			{
+				case TFObject_Dispenser:
+					strcopy(sBuilding, sizeof(sBuilding), "Dispenser");
+				case TFObject_Teleporter:
+				{
+					switch (TF2_GetObjectMode(entity))
+					{
+						case TFObjectMode_Entrance:
+							strcopy(sBuilding, sizeof(sBuilding), "Teleporter Entrance");
+						case TFObjectMode_Exit:
+							strcopy(sBuilding, sizeof(sBuilding), "Teleporter Exit");
+					}
+				}
+				case TFObject_Sentry:
+					strcopy(sBuilding, sizeof(sBuilding), "Sentry");
+				case TFObject_Sapper:
+					strcopy(sBuilding, sizeof(sBuilding), "Sapper");
+			}
+
 			SetEntProp(entity, Prop_Send, "m_bDisabled", 0);
 			g_DisableBuilding[entity] = GetTime() + StringToInt(sDuration);
-			CPrintToChat(client, "You have rented this {haunted}building{default}.");
+			CPrintToChat(client, "You have rented this {haunted}%s{default}.", sBuilding);
 
 			float origin[3];
 			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
 
-			TF2_CreateAnnotationToAll(origin, "Building Active", StringToFloat(sDuration), "vo/null.wav");
+			char sAnno[64];
+			FormatEx(sAnno, sizeof(sAnno), "%s Active", sBuilding);
+			TF2_CreateAnnotationToAll(origin, sAnno, StringToFloat(sDuration), "vo/null.wav");
 
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_BUILDINGS, 1);
@@ -5027,6 +5050,27 @@ void SetupBuildings()
 
 void OnBuildingTick(int entity)
 {
+	char sBuilding[64];
+	switch (TF2_GetObjectType(entity))
+	{
+		case TFObject_Dispenser:
+			strcopy(sBuilding, sizeof(sBuilding), "Dispenser");
+		case TFObject_Teleporter:
+		{
+			switch (TF2_GetObjectMode(entity))
+			{
+				case TFObjectMode_Entrance:
+					strcopy(sBuilding, sizeof(sBuilding), "Teleporter Entrance");
+				case TFObjectMode_Exit:
+					strcopy(sBuilding, sizeof(sBuilding), "Teleporter Exit");
+			}
+		}
+		case TFObject_Sentry:
+			strcopy(sBuilding, sizeof(sBuilding), "Sentry");
+		case TFObject_Sapper:
+			strcopy(sBuilding, sizeof(sBuilding), "Sapper");
+	}
+	
 	char sCost[64];
 	GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
 	
@@ -5057,12 +5101,12 @@ void OnBuildingTick(int entity)
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to enable this building for %i points!", StringToInt(sCost));
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to enable this %s for %i points!", sBuilding, StringToInt(sCost));
 			}
 			else
 			{
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "[Building locked until round %i]", unlock);
+				g_Sync_NearInteractable.Send(i, "[%s locked until round %i]", sBuilding, unlock);
 			}
 		}
 		else if (g_Player[i].nearinteractable == entity)
