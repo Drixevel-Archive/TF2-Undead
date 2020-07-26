@@ -1,3 +1,18 @@
+/*
+Packapunch should work for 1 weapon 4 times.
+Fix easter egg glitches if any exist.
+->Powerups should work for all.
+Hudsync bugs to look into.
+->Screenfade alpha lowered so it's less blinding.
+Packapunch needs to be tweaked.
+Crouch points near some machines sometimes.
+Max Ammo has bugs.
+Dispenser shouldn't be upgradable.
+List of weapons in the undead menu.
+Packapunsh should refill ammo for the gun.
+Nerf the Wunderwaffe.
+*/
+
 /*****************************/
 //Pragma
 #pragma semicolon 1
@@ -282,6 +297,40 @@ enum struct Match
 		this.powerups_cooldown = -1;
 	}
 
+	void Reset()
+	{
+		this.difficulty = GetDifficultyByName("Medium");
+		this.roundtime = 0;
+		StopTimer(this.roundtimer);
+		this.roundphase = PHASE_HIBERNATION;
+		StopTimer(this.hud_timer);
+		this.round = 0;
+		
+		this.pausetimer = false;
+		this.pausezombies = false;
+
+		CloseBonusDoor();
+		this.bomb_heads = false;
+		this.spawn_robots = false;
+
+		this.powerups_cooldown = -1;
+
+		int entity = -1;
+		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
+			AcceptEntityInput(entity, "Kill");
+
+		int secret;
+
+		if ((secret = FindEntityByName("secret_lock", "logic_relay")) != -1)
+			AcceptEntityInput(secret, "Trigger");
+		
+		if ((secret = FindEntityByName("secret2_lock", "logic_relay")) != -1)
+			AcceptEntityInput(secret, "Trigger");
+		
+		if ((secret = FindEntityByName("secret3_lock", "logic_relay")) != -1)
+			AcceptEntityInput(secret, "Trigger");
+	}
+
 	void PauseZombies()
 	{
 		this.pausezombies = true;
@@ -443,8 +492,8 @@ enum struct Player
 		this.secondary = -1;
 		this.melee = -1;
 
-		this.stats.Clear();
 		this.perks.Clear();
+		this.stats.Clear();
 
 		this.Clean(false);
 	}
@@ -502,8 +551,8 @@ enum struct Player
 		this.regentimer = null;
 		this.punchanim = null;
 
-		this.stats = null;
 		this.perks = null;
+		this.stats = null;
 
 		this.firetotal = 0;
 		this.firetimer = null;
@@ -1228,8 +1277,6 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_synclobby", Command_SyncLobby, ADMFLAG_GENERIC);
 
-	RegAdminCmd("sm_disableeastereggs", Command_DisableEasterEggs, ADMFLAG_GENERIC);
-
 	RegAdminCmd("sm_debugweapons", Command_DebugWeapons, ADMFLAG_ROOT);
 	RegAdminCmd("sm_nextweapon", Command_NextWeapons, ADMFLAG_ROOT);
 	RegAdminCmd("sm_stopdebugweapons", Command_StopDebugWeapons, ADMFLAG_ROOT);
@@ -1375,7 +1422,7 @@ public void OnCreateTable(Database db, DBResultSet results, const char[] error, 
 
 public Action OnRelayTrigger(const char[] output, int caller, int activator, float delay)
 {
-	char sName[64];
+	/*char sName[64];
 	GetEntPropString(caller, Prop_Data, "m_iName", sName, sizeof(sName));
 
 	if (StrContains(sName, "secret_unlock", false) != -1)
@@ -1386,7 +1433,7 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret2_lock", false) != -1)
 		g_Match.bomb_heads = false;
-	/*else if (StrContains(sName, "secret3_unlock", false) != -1)
+	else if (StrContains(sName, "secret3_unlock", false) != -1)
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret3_lock", false) != -1)
 		g_Match.bomb_heads = false;*/
@@ -1952,6 +1999,8 @@ public Action Timer_RoundTimer(Handle timer)
 			SpawnSecretBoxes();
 			SpawnPlanks();
 			SetupBuildings();
+
+			CloseBonusDoor();
 
 			g_WaveTime = GetWaveTime();
 			g_WaveTimer = CreateTimer(1.0, Timer_SpawnWave, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
@@ -3707,6 +3756,9 @@ public void OnClientDisconnect(int client)
 
 	if (IsValidEntity(g_Player[client].revivemarker))
 		AcceptEntityInput(g_Player[client].revivemarker, "Kill");
+
+	if (GetClientAbsCount() < 1)
+		g_Match.Reset();
 }
 
 public void OnClientDisconnect_Post(int client)
@@ -4557,10 +4609,18 @@ bool OnPowerupPickup(int client, int entity)
 	{
 		//double points
 		case 0:
-			g_Player[client].doublepoints = GetTime() + RoundFloat(g_Powerups[index].timer);
+		{
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+					g_Player[i].doublepoints = GetTime() + RoundFloat(g_Powerups[index].timer);
+		}
 		//insta kill
 		case 1:
-			g_Player[client].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
+		{
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+					g_Player[i].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
+		}
 		//nuke
 		case 2:
 		{
@@ -4571,13 +4631,16 @@ bool OnPowerupPickup(int client, int entity)
 		case 3:
 		{
 			int weapon;
-			for (int i = 0; i < 2; i++)
+			for (int i = 1; i <= MaxClients; i++)
 			{
-				if ((weapon = GetPlayerWeaponSlot(client, i)) == -1)
-					continue;
-				
-				TF2Items_RefillMag(weapon);
-				TF2Items_RefillAmmo(client, weapon);
+				for (int x = 0; x < 2; x++)
+				{
+					if ((weapon = GetPlayerWeaponSlot(i, x)) == -1)
+						continue;
+					
+					TF2Items_RefillMag(weapon);
+					TF2Items_RefillAmmo(i, weapon);
+				}
 			}
 		}
 	}
@@ -4591,7 +4654,7 @@ bool OnPowerupPickup(int client, int entity)
 	return true;
 }
 
-void ScreenFadeAll2(int duration = 100, int hold_time = 100, int flag = FFADE_IN, int colors[4] = {235, 235, 235, 200}, bool reliable = true)
+void ScreenFadeAll2(int duration = 100, int hold_time = 100, int flag = FFADE_IN, int colors[4] = {235, 235, 235, 150}, bool reliable = true)
 {
 	bool pb = GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf;
 	Handle userMessage;
@@ -5204,6 +5267,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					TeleportEntity(iOwner, vecMarkerPos, NULL_VECTOR, NULL_VECTOR);
 					StripPlayer(iOwner);
 				}
+				
 				delete TraceRay;
 
 				TFClassType class = view_as<TFClassType>(GetEntProp(entity, Prop_Send, "m_nBody") + 1);
@@ -6385,6 +6449,29 @@ void OpenBonusDoor()
 		AcceptEntityInput(sprite, "ShowSprite");
 }
 
+void CloseBonusDoor()
+{
+	g_Match.secret_door_unlocked = false;
+
+	int secret_door = FindEntityByName("bonus_level_door");
+
+	if (IsValidEntity(secret_door))
+	{
+		AcceptEntityInput(secret_door, "Lock");
+		AcceptEntityInput(secret_door, "Close");
+	}
+	
+	RecomputeNavs();
+
+	int sprite;
+
+	if ((sprite = FindEntityByName("secretdoor_sprite_disabled", "env_sprite")) != -1)
+		AcceptEntityInput(sprite, "ShowSprite");
+	
+	if ((sprite = FindEntityByName("secretdoor_sprite_enabled", "env_sprite")) != -1)
+		AcceptEntityInput(sprite, "HideSprite");
+}
+
 public Action Command_Statistics(int client, int args)
 {
 	OpenStatisticsMenu(client);
@@ -6581,16 +6668,6 @@ public Action Command_Target(int client, int args)
 	TF2_AddCondition(g_GlobalTarget, TFCond_MarkedForDeath, TFCondDuration_Infinite);
 	CPrintToChatAll("%N is now enemy number 1!", g_GlobalTarget);
 
-	return Plugin_Handled;
-}
-
-public Action Command_DisableEasterEggs(int client, int args)
-{
-	g_Match.secret_door_unlocked = false;
-	g_Match.bomb_heads = false;
-	g_Match.spawn_robots = false;
-
-	CPrintToChat(client, "Easter Eggs are disabled now.");
 	return Plugin_Handled;
 }
 
