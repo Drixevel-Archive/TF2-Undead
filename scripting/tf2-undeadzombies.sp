@@ -132,6 +132,8 @@ int g_PowerupIndex[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Powerup Index
 int g_RechargeBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Buildings
 int g_DisableBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Buildings
 
+Handle g_BlockDispenserMetal;
+
 char sModels[10][PLATFORM_MAX_PATH] =
 {
 	"",
@@ -1288,6 +1290,15 @@ public void OnPluginStart()
 
 	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
 
+	Handle hGameConf = LoadGameConfigFile("undead.gamedata");
+
+	int offset = GameConfGetOffset(hGameConf, "CObjectDispenser::DispenseMetal");
+
+	delete hGameConf;
+
+	g_BlockDispenserMetal = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, DispenseMetal);
+	DHookAddParam(g_BlockDispenserMetal, HookParamType_CBaseEntity, _, DHookPass_ByRef);
+
 	g_Sync_NearInteractable = new Hud();
 
 	statistics = new ArrayList(ByteCountToCells(128));
@@ -1982,6 +1993,11 @@ public Action Timer_RoundTimer(Handle timer)
 						
 						StripPlayer(i);
 						SpeakResponseConcept(i, "TLK_MVM_WAVE_START");
+
+						SetEntProp(i, Prop_Data, "m_iAmmo", 0, 4, 3);
+
+						if (TF2_GetPlayerClass(i) == TFClass_Engineer)
+							TF2Attrib_SetByName(i, "maxammo metal reduced", 0.0);
 					}
 
 					case TEAM_ZOMBIES:
@@ -2400,7 +2416,13 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 	
 	if (StrEqual(classname, "obj_dispenser"))
+	{
 		SDKHook(entity, SDKHook_OnTakeDamage, OnDispenserTakeDamage);
+		SDKHook(entity, SDKHook_SpawnPost, OnSpawnPost);
+
+		if (g_Late)
+			OnSpawnPost(entity);
+	}
 	
 	if (entity > 0)
 	{
@@ -2451,6 +2473,11 @@ public Action OnDispenserTakeDamage(int victim, int& attacker, int& inflictor, f
 {
 	damage = 0.0;
 	return Plugin_Changed;
+}
+
+public void OnSpawnPost(int entity)
+{
+	DHookEntity(g_BlockDispenserMetal, false, entity);
 }
 
 public void OnEntityDestroyed(int entity)
@@ -6801,4 +6828,15 @@ public int MenuHandler_WaveInfo(Menu menu, MenuAction action, int param1, int pa
 			if (param2 == 1)
 				OpenWaveInfoPanel(param1);
 	}
+}
+
+public MRESReturn DispenseMetal(int thisp, Handle hReturn, Handle hParams)
+{
+	if (hReturn != null)
+	{
+		DHookSetReturn(hReturn, false);
+		return MRES_Supercede;
+	}
+
+	return MRES_Ignored;
 }
