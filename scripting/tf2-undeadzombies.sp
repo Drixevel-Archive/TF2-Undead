@@ -65,8 +65,8 @@ Nerf the Wunderwaffe.
 #define ZOMBIE_ATTACK_SPEED_MIN 0.4
 #define ZOMBIE_ATTACK_SPEED_MAX 0.7
 
-#define ZOMBIE_DAMAGE_MIN 2.0
-#define ZOMBIE_DAMAGE_MAX 8.0
+#define ZOMBIE_DAMAGE_MIN 15.0
+#define ZOMBIE_DAMAGE_MAX 25.0
 
 #define ZOMBIE_BASE_SPEED 150.0
 
@@ -277,6 +277,7 @@ enum struct Match
 	bool spawn_robots;
 
 	int powerups_cooldown;
+	int coins_machine;
 
 	void Init()
 	{
@@ -295,6 +296,7 @@ enum struct Match
 		this.spawn_robots = false;
 
 		this.powerups_cooldown = -1;
+		this.coins_machine = -1;
 	}
 
 	void Reset()
@@ -314,6 +316,7 @@ enum struct Match
 		this.spawn_robots = false;
 
 		this.powerups_cooldown = -1;
+		this.coins_machine = -1;
 
 		int entity = -1;
 		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
@@ -2008,6 +2011,8 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundtime = 120;
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
+
+			g_Match.coins_machine = GetRandomInt(0, g_TotalMachines - 1);
 
 			for (int i = 1; i <= MaxClients; i++)
 				if (IsClientInGame(i))
@@ -3803,7 +3808,7 @@ public Action OnClientCommand(int client, int args)
 			return Plugin_Stop;
 		}
 
-		if (!IsDrixevel(client) && team == TEAM_ZOMBIES && GetTeamAbsCount(TEAM_SURVIVORS) < 2)
+		if (!IsDrixevel(client) && team == TEAM_ZOMBIES && GetTeamAbsCount(TEAM_SURVIVORS) < 1)
 		{
 			ShowVGUIPanel(client, "team");
 			PrintErrorMessage(client, "Match must consist of 1 Survivor already in order to become a Zombie. (besides yourself)");
@@ -3901,7 +3906,15 @@ public Action TF2_OnCallMedic(int client)
 		int entity = near;
 		int index = g_Machines[entity].index;
 
-		if (!g_Player[client].RemovePoints(g_Machines[entity].price))
+		bool doublepoints = g_Player[client].doublepoints != -1 && g_Player[client].doublepoints > GetTime();
+
+		if (g_Machines[entity].index == g_Match.coins_machine && GetEntityFlags(client) & FL_DUCKING)
+		{
+			g_Player[client].AddPoints(doublepoints ? 100 : 50);
+			EmitGameSoundToAll("MVM.MoneyPickup", client);
+			g_Match.coins_machine = -1;
+		}
+		else if (!g_Player[client].RemovePoints(g_Machines[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "You must have {haunted}%i {default}points to unlock this perk.", g_Machines[entity].price);
@@ -5547,6 +5560,7 @@ void OpenMainMenu(int client)
 	menu.SetTitle("[Gamemode] Undead Zombies");
 
 	menu.AddItem("statistics", "Your Undead Statistics");
+	menu.AddItem("weapons", "View Custom Weapons Info");
 	menu.AddItem("info", "What is this gamemode?");
 	menu.AddItem("type", "What are the types of zombies?");
 	menu.AddItem("machines", "What do the Machines do?");
@@ -5567,6 +5581,8 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 
 			if (StrEqual(sInfo, "statistics", false))
 				OpenStatisticsMenu(param1, true);
+			else if (StrEqual(sInfo, "weapons", false))
+				OpenWeaponsMenu(param1);
 			else if (StrEqual(sInfo, "info", false))
 				OpenInfoPanel(param1);
 			else if (StrEqual(sInfo, "type", false))
@@ -5581,6 +5597,11 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 		case MenuAction_End:
 			delete menu;
 	}
+}
+
+void OpenWeaponsMenu(int client)
+{
+	if (client) { }
 }
 
 void OpenInfoPanel(int client)

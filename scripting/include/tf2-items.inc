@@ -29,6 +29,8 @@ native int TF2Items_GetItemKeyInt(const char[] item, const char[] key);
 native float TF2Items_GetItemKeyFloat(const char[] item, const char[] key);
 native bool TF2Items_GetItemKeyString(const char[] item, const char[] key, char[] buffer, int size);
 
+native void TF2Items_OpenInfoPanel(int client, const char[] item);
+
 //Forwards
 forward Action TF2Items_OnRegisterAttributes();
 forward void TF2Items_OnRegisterAttributesPost();
@@ -57,6 +59,8 @@ public void __pl_tf2_items_SetNTVOptional()
 	MarkNativeAsOptional("TF2Items_GetItemKeyInt");
 	MarkNativeAsOptional("TF2Items_GetItemKeyFloat");
 	MarkNativeAsOptional("TF2Items_GetItemKeyString");
+
+	MarkNativeAsOptional("TF2Items_OpenInfoPanel");
 }
 #endif
 
