@@ -1434,7 +1434,7 @@ public void OnCreateTable(Database db, DBResultSet results, const char[] error, 
 
 public Action OnRelayTrigger(const char[] output, int caller, int activator, float delay)
 {
-	/*char sName[64];
+	char sName[64];
 	GetEntPropString(caller, Prop_Data, "m_iName", sName, sizeof(sName));
 
 	if (StrContains(sName, "secret_unlock", false) != -1)
@@ -1445,7 +1445,7 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret2_lock", false) != -1)
 		g_Match.bomb_heads = false;
-	else if (StrContains(sName, "secret3_unlock", false) != -1)
+	/*else if (StrContains(sName, "secret3_unlock", false) != -1)
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret3_lock", false) != -1)
 		g_Match.bomb_heads = false;*/
