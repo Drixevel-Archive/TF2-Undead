@@ -219,11 +219,9 @@ enum struct Statistics
 Statistics g_Statistics[32];
 
 //Difficulty Data
-int g_TotalDifficulties;
 enum struct Difficulty
 {
 	char name[64];
-
 	float damage_multiplier;
 	float health_multiplier;
 	float points_multiplier;
@@ -234,25 +232,10 @@ enum struct Difficulty
 	float movespeed_multipler;
 	int max_zombies;
 	bool admin_only;
-
-	void CreateDifficulty(const char[] name, float damage_multiplier = 1.0, float health_multiplier = 1.0, float points_multiplier = 1.0, float revive_multiplier = 1.0, float wavespawn_rate = 1.0, float wavespawn_min = 1.0, float wavespawn_max = 1.0, float movespeed_multipler = 1.0, int max_zombies = 100, bool admin_only = false)
-	{
-		strcopy(this.name, 64, name);
-		this.damage_multiplier = damage_multiplier;
-		this.health_multiplier = health_multiplier;
-		this.points_multiplier = points_multiplier;
-		this.revive_multiplier = revive_multiplier;
-		this.wavespawn_rate = wavespawn_rate;
-		this.wavespawn_min = wavespawn_min;
-		this.wavespawn_max = wavespawn_max;
-		this.movespeed_multipler = movespeed_multipler;
-		this.max_zombies = max_zombies;
-		this.admin_only = admin_only;
-		g_TotalDifficulties++;
-	}
 }
 
 Difficulty g_Difficulty[MAX_DIFFICULTIES];
+int g_TotalDifficulties;
 
 //Match Data
 enum struct Match
@@ -1023,7 +1006,6 @@ Handle g_WaveTimer;
 Hud g_Sync_NearInteractable;
 
 //MachinesData
-int g_TotalMachines;
 enum struct MachinesData
 {
 	char name[64];
@@ -1032,20 +1014,10 @@ enum struct MachinesData
 	char model[PLATFORM_MAX_PATH];
 	float z_offset;
 	int max;
-
-	void CreateMachine(const char[] name, const char[] display, const char[] description, const char[] model, float z_offset, int max = 0)
-	{
-		strcopy(this.name, 64, name);
-		strcopy(this.display, 64, display);
-		strcopy(this.description, 128, description);
-		strcopy(this.model, PLATFORM_MAX_PATH, model);
-		this.z_offset = -z_offset;
-		this.max = max;
-		g_TotalMachines++;
-	}
 }
 
 MachinesData g_MachinesData[MAX_MACHINES];
+int g_TotalMachines;
 
 //Machines
 enum struct Machines
@@ -1089,24 +1061,15 @@ public Action Timer_PlaySound(Handle timer, any data)
 }
 
 //CustomWeaponsData
-int g_TotalCustomWeapons;
 enum struct CustomWeaponsData
 {
 	char name[64];
 	float offset_angles[3];
 	bool secret_box;
-
-	void CreateWeapon(const char[] name, float offset_angles[3] = NULL_VECTOR, bool secret_box = false)
-	{
-		strcopy(this.name, 64, name);
-		for (int i = 0; i < 3; i++)
-			this.offset_angles[i] = offset_angles[i];
-		this.secret_box = secret_box;
-		g_TotalCustomWeapons++;
-	}
 }
 
 CustomWeaponsData g_CustomWeapons[MAX_WEAPONS];
+int g_TotalCustomWeapons;
 
 //SecretBox
 enum struct SecretBox
@@ -1130,7 +1093,6 @@ enum struct SecretBox
 SecretBox g_SecretBox[MAX_ENTITY_LIMIT + 1];
 
 //Powerups
-int g_TotalPowerups;
 enum struct Powerups
 {
 	char name[64];
@@ -1138,26 +1100,16 @@ enum struct Powerups
 	char model[PLATFORM_MAX_PATH];
 	char sound[PLATFORM_MAX_PATH];
 	float timer;
-
-	void CreatePowerup(const char[] name, const char[] description, const char[] model, const char[] sound, float timer = 0.0)
-	{
-		strcopy(this.name, 64, name);
-		strcopy(this.description, 128, description);
-		strcopy(this.model, PLATFORM_MAX_PATH, model);
-		strcopy(this.sound, PLATFORM_MAX_PATH, sound);
-		this.timer = timer;
-		g_TotalPowerups++;
-	}
 }
+
 Powerups g_Powerups[MAX_POWERUPS];
+int g_TotalPowerups;
 
 //Special Zombies
-int g_TotalZombieTypes;
 enum struct ZombieTypes
 {
 	char name[64];
 	char description[128];
-
 	int health;
 	int class;
 	int team;
@@ -1168,28 +1120,10 @@ enum struct ZombieTypes
 	char death_sound[PLATFORM_MAX_PATH];
 	char particle[64];
 	int unlock_wave;
-
-	void CreateZombie(const char[] name, const char[] description = "", int health = -1, int class = -1, int team = -1, float size = -1.0, float speed = -1.0, int color[4] = {255, 255, 255, 255}, const char[] spawn_sound = "", const char[] death_sound = "", const char[] particle = "", int unlock_wave = -1)
-	{
-		strcopy(this.name, 64, name);
-		strcopy(this.description, 128, description);
-		this.health = health;
-		this.class = class;
-		this.team = team;
-		this.size = size;
-		this.speed = speed;
-		for (int i = 0; i < 4; i++)
-			this.color[i] = color[i];
-		strcopy(this.spawn_sound, PLATFORM_MAX_PATH, spawn_sound);
-		strcopy(this.death_sound, PLATFORM_MAX_PATH, death_sound);
-		strcopy(this.particle, 64, particle);
-		this.unlock_wave = unlock_wave;
-
-		g_TotalZombieTypes++;
-	}
 }
 
 ZombieTypes g_ZombieTypes[MAX_ZOMBIETYPES];
+int g_TotalZombieTypes;
 
 /*****************************/
 //Plugin Info
@@ -1354,31 +1288,12 @@ public void OnPluginStart()
 
 	for (int i = 0; i < MAX_NPCS; i++)
 		g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
-	
-/* 	name
-	damage_multiplier
-	health_multiplier
-	points_multiplier
-	revive_multiplier
-	wavespawn_rate
-	wavespawn_min
-	wavespawn_max
-	movespeed_multipler
-	max_zombies */
 
-	g_TotalDifficulties = 0;
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Baby Mode", 0.1, 0.1, 0.1, 2.0, 1.0, 0.3, 0.3, 0.1, 8);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Easy", 0.6, 0.6, 0.6, 1.7, 0.9, 0.8, 0.8, 0.6, 10);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Medium", 1.0, 1.0, 1.0, 1.5, 0.8, 1.2, 1.2, 1.0, 25);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Hard", 1.3, 1.3, 1.3, 0.8, 0.7, 1.5, 1.5, 1.3, 50);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Expert", 1.4, 1.4, 1.4, 0.6, 0.6, 1.7, 1.7, 1.4, 75);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Holy Lag", 2.0, 2.0, 2.0, 0.4, 0.5, 2.0, 2.0, 2.0, 100, true);
-	g_Difficulty[g_TotalDifficulties].CreateDifficulty("Crash This Shit", 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999.0, 99999, true);
-	
-	SetupMachines();
-	SetupCustomWeapons();
-	SetupPowerups();
-	SetupSpecials();
+	ParseDifficulties();
+	ParseMachines();
+	ParseWeapons();
+	ParsePowerups();
+	ParseSpecials();
 
 	int entity = -1; char class[64];
 	while ((entity = FindEntityByClassname(entity, "*")) != -1)
@@ -1405,6 +1320,39 @@ public void OnPluginStart()
 	HookConVarChange(nb_update_frequency, Hook_BlockCvarValue);
 	
 	CreateTimer(0.6, Timer_ZombieTicks, _, TIMER_REPEAT);
+}
+
+void ParseDifficulties()
+{
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/difficulties.cfg");
+
+	KeyValues kv = new KeyValues("difficulties");
+
+	if (kv.ImportFromFile(sPath) && kv.GotoFirstSubKey())
+	{
+		g_TotalDifficulties = 0;
+
+		do
+		{
+			kv.GetSectionName(g_Difficulty[g_TotalDifficulties].name, 64);
+			g_Difficulty[g_TotalDifficulties].damage_multiplier = kv.GetFloat("damage_multiplier");
+			g_Difficulty[g_TotalDifficulties].health_multiplier = kv.GetFloat("health_multiplier");
+			g_Difficulty[g_TotalDifficulties].points_multiplier = kv.GetFloat("points_multiplier");
+			g_Difficulty[g_TotalDifficulties].revive_multiplier = kv.GetFloat("revive_multiplier");
+			g_Difficulty[g_TotalDifficulties].wavespawn_rate = kv.GetFloat("wavespawn_rate");
+			g_Difficulty[g_TotalDifficulties].wavespawn_min = kv.GetFloat("wavespawn_min");
+			g_Difficulty[g_TotalDifficulties].wavespawn_max = kv.GetFloat("wavespawn_max");
+			g_Difficulty[g_TotalDifficulties].movespeed_multipler = kv.GetFloat("movespeed_multipler");
+			g_Difficulty[g_TotalDifficulties].max_zombies = kv.GetNum("max_zombies");
+			g_Difficulty[g_TotalDifficulties].admin_only = view_as<bool>(kv.GetNum("admin_only"));
+			g_TotalDifficulties++;
+		}
+		while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Difficulties Loaded: %i", g_TotalDifficulties);
 }
 
 public void OnSQLConnect(Database db, const char[] error, any data)
@@ -4142,16 +4090,32 @@ public Action TF2_OnCallMedic(int client)
 //Machines
 /****************************************/
 
-void SetupMachines()
+void ParseMachines()
 {
-	g_TotalMachines = 0;
-	g_MachinesData[g_TotalMachines].CreateMachine("quickrevive", "Quick Revive", "Respawn players faster.", "models/undead/machines/quickrevive/quickrevive.mdl", 75.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("speedcola", "Speed Cola", "Decrease reload and switch time for weapons.", "models/undead/machines/speedcola/speedcola.mdl", 85.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("juggernog", "Juggernog", "Increase your healthpool.", "models/undead/machines/juggernog/juggernog .mdl", 80.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("packapunch", "Packapunch", "Upgrade your currently active weapons damage, fire rate and reload time.", "models/undead/machines/packapunch/packapunch.mdl", 60.0, 4);
-	g_MachinesData[g_TotalMachines].CreateMachine("staminup", "Staminup", "Increase your movement speed.", "models/undead/machines/staminup/staminup.mdl", 10.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("deadshot", "Deadshot", "Add projectile pentrations to your weapons.", "models/undead/machines/deadshot/deadshot.mdl", 10.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("doubletap", "Doubletap", "Increase the amount of bullets per shot.", "models/undead/machines/doubletap/doubletap2.mdl", 8.0, 1);
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/machines.cfg");
+
+	KeyValues kv = new KeyValues("machines");
+
+	if (kv.ImportFromFile(sPath) && kv.GotoFirstSubKey())
+	{
+		g_TotalMachines = 0;
+
+		do
+		{
+			kv.GetSectionName(g_MachinesData[g_TotalMachines].name, 64);
+			kv.GetString("display", g_MachinesData[g_TotalMachines].display, 128);
+			kv.GetString("description", g_MachinesData[g_TotalMachines].description, 128);
+			kv.GetString("model", g_MachinesData[g_TotalMachines].model, PLATFORM_MAX_PATH);
+			g_MachinesData[g_TotalMachines].z_offset = kv.GetFloat("z_offset");
+			g_MachinesData[g_TotalMachines].max = kv.GetNum("max");
+			g_TotalMachines++;
+		}
+		while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Machines Loaded: %i", g_TotalMachines);
 }
 
 void SpawnMachines()
@@ -4309,51 +4273,29 @@ void TF2Attrib_SetFireRateBonus(int weapon, float bonus)
 //Weapons
 /****************************************/
 
-void SetupCustomWeapons()
+void ParseWeapons()
 {
-	g_TotalCustomWeapons = 0;
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raiding Aid", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Steel Battalion", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Twenty-Six Shooter", view_as<float>({0.0, 270.0, 90.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Bolshevik Bomber", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Maxim GUN", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Soviet Sweeper", view_as<float>({0.0, 270.0, 90.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Co's Jewel", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Pseudonailgun", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tempest", view_as<float>({90.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Broomhandle Backup", view_as<float>({0.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Burping Blaster", view_as<float>({90.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Point Man's Carbine", view_as<float>({90.0, 180.0, 0.0}));
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Engineer", view_as<float>({0.0, 270.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Engineer", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Wunderwaffe DG2", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Arms Racer Heavy", view_as<float>({0.0, 270.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Graphite Perisher", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Heavy Artillery", view_as<float>({0.0, 180.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Persistent Persuasion", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Portable Ordnance", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Heavy", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Tactigatling Heavy", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big Iron", view_as<float>({0.0, 270.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Big MAC", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Blundergat", view_as<float>({0.0, 270.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Boston Bulldog", view_as<float>({90.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Desk Fan", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Gonzo Piece", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Hand Cannon", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Raygun", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Kanopy Killer Scout", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("AK47", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Brief Negotiator", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Country Killer", view_as<float>({0.0, 270.0, 90.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Lil Mate", view_as<float>({90.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Fruit Shop Fiend", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Manncannon", view_as<float>({0.0, 180.0, 0.0}), true);
-	g_CustomWeapons[g_TotalCustomWeapons].CreateWeapon("Moonbeam", view_as<float>({0.0, 180.0, 0.0}), true);
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/weapons.cfg");
+
+	KeyValues kv = new KeyValues("weapons");
+
+	if (kv.ImportFromFile(sPath) && kv.GotoFirstSubKey())
+	{
+		g_TotalCustomWeapons = 0;
+
+		do
+		{
+			kv.GetSectionName(g_CustomWeapons[g_TotalCustomWeapons].name, 64);
+			kv.GetVector("offset_angles", g_CustomWeapons[g_TotalCustomWeapons].offset_angles);
+			g_CustomWeapons[g_TotalCustomWeapons].secret_box = view_as<bool>(kv.GetNum("secret_box"));
+			g_TotalCustomWeapons++;
+		}
+		while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Weapons Loaded: %i", g_TotalCustomWeapons);
 }
 
 void SpawnWeapons()
@@ -4515,13 +4457,31 @@ int GiveCustomWeapon(int client, int index)
 //Powerups
 /****************************************/
 
-void SetupPowerups()
+void ParsePowerups()
 {
-	g_TotalPowerups = 0;
-	g_Powerups[g_TotalPowerups].CreatePowerup("Double Points", "Grants you double the points for 20 seconds.", "models/undead/powerups/undead_powerup_x2.mdl", "undead/powerups/powerup_double_points.wav", 20.0);
-	g_Powerups[g_TotalPowerups].CreatePowerup("Instant Kill", "Instantly kill zombies for 20 seconds.", "models/undead/powerups/undead_powerup_instant_kill.mdl", "undead/powerups/powerup_instant_kill.wav", 20.0);
-	g_Powerups[g_TotalPowerups].CreatePowerup("Nuke", "Kill all zombies on the map.", "models/undead/powerups/undead_powerup_nuke.mdl", "undead/powerups/powerup_nuke.wav");
-	g_Powerups[g_TotalPowerups].CreatePowerup("Max Ammo", "Refills all of your weapons automatically.", "models/undead/powerups/undead_powerup_max_ammo.mdl", "undead/powerups/powerup_max_ammo.wav");
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/powerups.cfg");
+
+	KeyValues kv = new KeyValues("powerups");
+
+	if (kv.ImportFromFile(sPath) && kv.GotoFirstSubKey())
+	{
+		g_TotalPowerups = 0;
+
+		do
+		{
+			kv.GetSectionName(g_Powerups[g_TotalPowerups].name, 64);
+			kv.GetString("description", g_Powerups[g_TotalPowerups].description, 128);
+			kv.GetString("model", g_Powerups[g_TotalPowerups].model, PLATFORM_MAX_PATH);
+			kv.GetString("sound", g_Powerups[g_TotalPowerups].sound, PLATFORM_MAX_PATH);
+			g_Powerups[g_TotalPowerups].timer = kv.GetFloat("timer");
+			g_TotalPowerups++;
+		}
+		while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Powerups Loaded: %i", g_TotalPowerups);
 }
 
 public Action Command_SpawnPowerup(int client, int args)
@@ -6130,16 +6090,38 @@ public Action Command_SetRound(int client, int args)
 //Specials
 /****************************************/
 
-void SetupSpecials()
+void ParseSpecials()
 {
-	g_TotalZombieTypes = 0;
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie(ZOMBIE_DEFAULT, "A common garden variety zombie.");
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Scoots", "A very fast zombie!", 100, 1, -1, 0.8, 350.0, {255, 255, 255, 255}, "", "", "bombinomicon_airwaves", 2);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Explosive Demo", "A Demo that explodes on death.", -1, 4, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "undead/zombies/undead_zombie_death_explode.wav", "rockettrail", 10);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Strapped Engis", "An Engineer with a dispenser strapped to its back.", 400, 9, -1, -1.0, -1.0, {255, 255, 255, 255}, "", "", "", 4);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Spikey Bois", "A Spy that is half invisible and causes you to bleed.", 200, 8, -1, 0.6, -1.0, {255, 255, 255, 200}, "", "", "", 6);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Ignition Pyro", "A Pyro that lights you on fire on slash.", -1, 7, -1, 1.0, -1.0, {255, 255, 255, 255}, "", "", "cauldron_embers", 8);
-	g_ZombieTypes[g_TotalZombieTypes].CreateZombie("Tank Heavy", "Big ass Heavy with a ton of health on fire.", 6000, 6, -1, 2.0, 85.0, {255, 255, 255, 255}, "undead/zombies/undead_giant_zombie_spawn.wav", "", "lava_fireball", 15);
+	char sPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/specials.cfg");
+
+	KeyValues kv = new KeyValues("specials");
+
+	if (kv.ImportFromFile(sPath) && kv.GotoFirstSubKey())
+	{
+		g_TotalZombieTypes = 0;
+
+		do
+		{
+			kv.GetSectionName(g_ZombieTypes[g_TotalZombieTypes].name, 64);
+			kv.GetString("description", g_ZombieTypes[g_TotalZombieTypes].description, 128);
+			g_ZombieTypes[g_TotalZombieTypes].health = kv.GetNum("health");
+			g_ZombieTypes[g_TotalZombieTypes].class = kv.GetNum("class");
+			g_ZombieTypes[g_TotalZombieTypes].team = kv.GetNum("team");
+			g_ZombieTypes[g_TotalZombieTypes].size = kv.GetFloat("size");
+			g_ZombieTypes[g_TotalZombieTypes].speed = kv.GetFloat("speed");
+			kv.GetColor4("color", g_ZombieTypes[g_TotalZombieTypes].color);
+			kv.GetString("spawn_sound", g_ZombieTypes[g_TotalZombieTypes].spawn_sound, PLATFORM_MAX_PATH);
+			kv.GetString("death_sound", g_ZombieTypes[g_TotalZombieTypes].death_sound, PLATFORM_MAX_PATH);
+			kv.GetString("particle", g_ZombieTypes[g_TotalZombieTypes].particle, 64);
+			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave");
+			g_TotalZombieTypes++;
+		}
+		while (kv.GotoNextKey());
+	}
+
+	delete kv;
+	LogMessage("Zombies Loaded: %i", g_TotalZombieTypes);
 }
 
 float[] PredictSubjectPosition(CBaseNPC npc, int subject)
