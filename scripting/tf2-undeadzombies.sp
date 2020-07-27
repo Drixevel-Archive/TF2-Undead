@@ -3064,7 +3064,7 @@ public void OnZombieThink(int entity)
 	GetEntPropVector(entity, Prop_Data, "m_angAbsRotation", vecNPCAng);
 	
 	float time = GetGameTime();
-	if (g_Zombies[npc].sounds != -1.0 && g_Zombies[npc.Index].sounds <= time && npc.iHealth > 0)
+	if (!g_Match.pausezombies && g_Zombies[npc].sounds != -1.0 && g_Zombies[npc.Index].sounds <= time && npc.iHealth > 0)
 	{
 		PlayZombieSound(entity);
 		g_Zombies[npc.Index].sounds = GetZombieSoundDuration(entity);
@@ -3235,6 +3235,12 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 	if (npc == INVALID_NPC || IsPlayerIndex(attacker) && GetClientTeam(attacker) == npc.iTeamNum)
 		return Plugin_Continue;
 	
+	if (g_Match.pausezombies)
+	{
+		damage = 0.0;
+		return Plugin_Changed;
+	}
+	
 	bool changed;
 	if (IsPlayerIndex(attacker) && g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
 	{
@@ -3265,7 +3271,7 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 	if (convar_BloodFx.BoolValue && GetRandomFloat(0.0, 100.0) >= 50.0)
 		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
 	
-	if (GetRandomFloat(0.0, 100.0) >= 75.0)
+	if (!g_Match.pausezombies && GetRandomFloat(0.0, 100.0) >= 75.0)
 		PlayZombieSound(victim);
 
 	if (IsPlayerIndex(attacker) && GetClientTeam(attacker) == npc.iTeamNum)
@@ -3745,7 +3751,7 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 	if (convar_BloodFx.BoolValue && GetRandomFloat(0.0, 100.0) >= 50.0)
 		TE_Particle(sBloodParticles[GetRandomInt(0, 4)], damagePosition, victim);
 	
-	if (GetRandomFloat(0.0, 100.0) >= 75.0 && IsPlayerAlive(victim))
+	if (!g_Match.pausezombies && GetRandomFloat(0.0, 100.0) >= 75.0 && IsPlayerAlive(victim))
 		PlayZombieSound(victim);
 
 	if (IsPlayerIndex(attacker) && GetClientTeam(attacker) == GetClientTeam(victim))
@@ -3857,6 +3863,9 @@ public Action OnClientCommand(int client, int args)
 	}
 	else if ((StrEqual(sCommand, "voicemenu", false) || StrContains(sCommand, "taunt", false) != -1) && GetClientTeam(client) == TEAM_ZOMBIES)
 	{
+		if (g_Match.pausezombies)
+			return Plugin_Stop;
+		
 		float time = GetGameTime();
 
 		if (!IsPlayerAlive(client))
