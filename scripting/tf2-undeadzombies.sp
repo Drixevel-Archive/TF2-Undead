@@ -1,11 +1,9 @@
 /*
 Packapunch should work for 1 weapon 4 times.
-Fix easter egg glitches if any exist.
 Hudsync bugs to look into.
 Max Ammo has bugs.
 List of weapons in the undead menu.
-Packapunsh should refill ammo for the gun.
-Nerf the Wunderwaffe.
+Add configurations support for difficulties, zombie types, machines, powerups and weapons.
 */
 
 /*****************************/
@@ -4132,7 +4130,7 @@ void SetupMachines()
 	g_MachinesData[g_TotalMachines].CreateMachine("quickrevive", "Quick Revive", "Respawn players faster.", "models/undead/machines/quickrevive/quickrevive.mdl", 75.0, 1);
 	g_MachinesData[g_TotalMachines].CreateMachine("speedcola", "Speed Cola", "Decrease reload and switch time for weapons.", "models/undead/machines/speedcola/speedcola.mdl", 85.0, 1);
 	g_MachinesData[g_TotalMachines].CreateMachine("juggernog", "Juggernog", "Increase your healthpool.", "models/undead/machines/juggernog/juggernog .mdl", 80.0, 1);
-	g_MachinesData[g_TotalMachines].CreateMachine("packapunch", "Packapunch", "Upgrade your currently active weapons damage, fire rate and reload time.", "models/undead/machines/packapunch/packapunch.mdl", 60.0, 5);
+	g_MachinesData[g_TotalMachines].CreateMachine("packapunch", "Packapunch", "Upgrade your currently active weapons damage, fire rate and reload time.", "models/undead/machines/packapunch/packapunch.mdl", 60.0, 4);
 	g_MachinesData[g_TotalMachines].CreateMachine("staminup", "Staminup", "Increase your movement speed.", "models/undead/machines/staminup/staminup.mdl", 10.0, 1);
 	g_MachinesData[g_TotalMachines].CreateMachine("deadshot", "Deadshot", "Add projectile pentrations to your weapons.", "models/undead/machines/deadshot/deadshot.mdl", 10.0, 1);
 	g_MachinesData[g_TotalMachines].CreateMachine("doubletap", "Doubletap", "Increase the amount of bullets per shot.", "models/undead/machines/doubletap/doubletap2.mdl", 8.0, 1);
@@ -4671,6 +4669,9 @@ bool OnPowerupPickup(int client, int entity)
 			int weapon;
 			for (int i = 1; i <= MaxClients; i++)
 			{
+				if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS)
+					continue;
+				
 				for (int x = 0; x < 2; x++)
 				{
 					if ((weapon = GetPlayerWeaponSlot(i, x)) == -1)
