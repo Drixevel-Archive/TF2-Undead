@@ -1,13 +1,8 @@
 /*
 Packapunch should work for 1 weapon 4 times.
 Fix easter egg glitches if any exist.
-->Powerups should work for all.
 Hudsync bugs to look into.
-->Screenfade alpha lowered so it's less blinding.
-Packapunch needs to be tweaked.
-Crouch points near some machines sometimes.
 Max Ammo has bugs.
-Dispenser shouldn't be upgradable.
 List of weapons in the undead menu.
 Packapunsh should refill ammo for the gun.
 Nerf the Wunderwaffe.
@@ -753,6 +748,9 @@ enum struct Player
 					TF2Attrib_SetByName(weapon, "Reload time decreased", 0.85);
 				
 				TF2Attrib_SetByDefIndex(weapon, 134, g_SpawnedWeapons[weapon].particle);
+
+				TF2Items_RefillMag(weapon);
+				TF2Items_RefillAmmo(this.client, weapon);
 			}
 
 			if (!noanims)
