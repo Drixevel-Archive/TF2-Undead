@@ -1856,8 +1856,11 @@ void InitLobby()
 	g_Match.roundtime = LOBBY_TIME;
 	g_Match.round = 1;
 	g_Match.roundphase = PHASE_STARTING;
+
 	StopTimer(g_Match.roundtimer);
 	g_Match.roundtimer = CreateTimer(1.0, Timer_RoundTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+
+	CreateTF2Timer(LOBBY_TIME);
 
 	for (int i = 1; i <= MaxClients; i++)
 		if (IsClientInGame(i))
@@ -1898,12 +1901,6 @@ public Action Timer_RoundTimer(Handle timer)
 			else if (g_Match.roundphase == PHASE_ACTIVE)
 				Format(sSpec, sizeof(sSpec), " - Kills: %i", g_Player[i].zombiekills);
 			
-			char sTime[32];
-			if (g_Match.roundtime > 60)
-				FormatSeconds(float(g_Match.roundtime), sTime, sizeof(sTime), "%M:%S");
-			else
-				FormatSeconds(float(g_Match.roundtime), sTime, sizeof(sTime), "%S");
-			
 			char sPerk[MAX_NAME_LENGTH]; char sPerks[128]; char sDisplay[MAX_NAME_LENGTH]; char sCount[32];
 			for (int x = 0; x < g_Player[i].perks.Length; x++)
 			{
@@ -1936,11 +1933,11 @@ public Action Timer_RoundTimer(Handle timer)
 				switch (g_Match.roundphase)
 				{
 					case PHASE_STARTING:
-						g_Match.hud_timer.Send(i, "☰ Starting (%s): %s%s%s", sDifficulty, sTime, sPaused, sSpec);
+						g_Match.hud_timer.Send(i, "☰ Starting (%s) %s%s", sDifficulty, sPaused, sSpec);
 					case PHASE_WAITING:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave: %s%s\n☰ Next Spawns In: %i", g_Match.round, sDifficulty, sTime, sPaused, g_WaveTime);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave Incoming %s\n☰ Next Spawns In: %i", g_Match.round, sDifficulty, sPaused, g_WaveTime);
 					case PHASE_ACTIVE:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - %s%s\n☰ Next Spawns In: %i", g_Match.round, sDifficulty, sTime, sPaused, g_WaveTime);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) %s\n☰ Next Spawns In: %i", g_Match.round, sDifficulty, sPaused, g_WaveTime);
 				}
 			}
 			else
@@ -1956,11 +1953,11 @@ public Action Timer_RoundTimer(Handle timer)
 				switch (g_Match.roundphase)
 				{
 					case PHASE_STARTING:
-						g_Match.hud_timer.Send(i, "☰ Starting (%s): %s%s%s", sDifficulty, sTime, sPaused, sSpec);
+						g_Match.hud_timer.Send(i, "☰ Starting (%s) %s%s", sDifficulty, sPaused, sSpec);
 					case PHASE_WAITING:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave: %s%s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - Next Wave Incoming %s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
 					case PHASE_ACTIVE:
-						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) - %s%s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sTime, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
+						g_Match.hud_timer.Send(i, "☰ Wave %i (%s) %s\n☰ Points: %i%s%s%s", g_Match.round, sDifficulty, sPaused, g_Player[i].points, sSpec, sPowerup, sPerks);
 				}
 			}
 		}
@@ -2024,6 +2021,8 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
 
+			CreateTF2Timer(g_Match.roundtime);
+
 			g_Match.coins_machine = GetRandomInt(0, g_TotalMachines - 1);
 
 			for (int i = 1; i <= MaxClients; i++)
@@ -2041,6 +2040,8 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundphase = PHASE_WAITING;
 			EmitSoundToAll("undead/round_end.wav");
 
+			CreateTF2Timer(g_Match.roundtime);
+
 			TelePlayersToMap();
 			UnlockRelays();
 
@@ -2057,6 +2058,8 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
 			g_Match.round++;
+
+			CreateTF2Timer(g_Match.roundtime);
 
 			if (g_Match.round >= 25)
 			{
@@ -3424,6 +3427,8 @@ public Action Command_StartMatch(int client, int args)
 
 	CPrintToChatAll("{haunted}%N {default}has started the match.", client);
 
+	CreateTF2Timer(g_Match.roundtime);
+
 	return Plugin_Handled;
 }
 
@@ -3618,6 +3623,8 @@ public Action Command_PauseTimer(int client, int args)
 	g_Match.PauseZombies();
 	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
 
+	PauseTF2Timer();
+
 	return Plugin_Handled;
 }
 
@@ -3632,6 +3639,8 @@ public Action Command_UnpauseTimer(int client, int args)
 	g_Match.pausetimer = false;
 	g_Match.UnpauseZombies();
 	CPrintToChatAll("%N has {haunted}%spaused {default}the round timer.", client, g_Match.pausetimer ? "" : "un");
+
+	UnpauseTF2Timer();
 
 	return Plugin_Handled;
 }
@@ -6847,4 +6856,45 @@ public MRESReturn DispenseMetal(int thisp, Handle hReturn, Handle hParams)
 	}
 
 	return MRES_Ignored;
+}
+
+void CreateTF2Timer(int timer)
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+
+	char sTime[32];
+	IntToString(timer, sTime, sizeof(sTime));
+	
+	DispatchKeyValue(entity, "reset_time", "1");
+	DispatchKeyValue(entity, "auto_countdown", "0");
+	DispatchKeyValue(entity, "timer_length", sTime);
+	DispatchSpawn(entity);
+
+	AcceptEntityInput(entity, "Resume");
+
+	SetVariantInt(1);
+	AcceptEntityInput(entity, "ShowInHUD");
+}
+
+void PauseTF2Timer()
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+	
+	AcceptEntityInput(entity, "Pause");
+}
+
+void UnpauseTF2Timer()
+{
+	int entity = FindEntityByClassname(-1, "team_round_timer");
+
+	if (!IsValidEntity(entity))
+		entity = CreateEntityByName("team_round_timer");
+	
+	AcceptEntityInput(entity, "Resume");
 }
