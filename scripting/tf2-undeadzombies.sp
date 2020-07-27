@@ -1218,6 +1218,8 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_setzombietype", Command_SetZombieType, ADMFLAG_ROOT);
 
+	RegAdminCmd("sm_reloadconfigs", Command_ReloadConfigs, ADMFLAG_ROOT);
+
 	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
 
 	Handle hGameConf = LoadGameConfigFile("undead.gamedata");
@@ -6879,4 +6881,15 @@ void UnpauseTF2Timer()
 		entity = CreateEntityByName("team_round_timer");
 	
 	AcceptEntityInput(entity, "Resume");
+}
+
+public Action Command_ReloadConfigs(int client, int ars)
+{
+	ParseDifficulties();
+	ParseMachines();
+	ParseWeapons();
+	ParsePowerups();
+	ParseSpecials();
+	CPrintToChat(client, "Undead configurations have been reloaded.");
+	return Plugin_Handled;
 }
