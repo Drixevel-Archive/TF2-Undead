@@ -2522,7 +2522,7 @@ bool GetRandomSpawn(float origin[3])
 	int entities[MAX_ENTITY_LIMIT + 1];
 	int count;
 
-	int entity = -1; int unlock;
+	int entity = -1; int unlock; char required_door[64]; int required_door_ent;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
 	{
 		if (!HasName(entity, "und_zombie"))
@@ -2532,6 +2532,12 @@ bool GetRandomSpawn(float origin[3])
 		
 		if (unlock != -1 && unlock > g_Match.round)
 			continue;
+		
+		if (GetCustomKeyValue(entity, "und_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0)
+		{
+			if ((required_door_ent = FindEntityByName(required_door)) != -1 && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
+				continue;
+		}
 		
 		entities[count++] = entity;
 	}
