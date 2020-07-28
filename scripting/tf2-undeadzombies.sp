@@ -3,7 +3,6 @@ Packapunch should work for 1 weapon 4 times.
 Hudsync bugs to look into.
 Max Ammo has bugs.
 List of weapons in the undead menu.
-Add configurations support for difficulties, zombie types, machines, powerups and weapons.
 */
 
 /*****************************/
@@ -5769,7 +5768,32 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 
 void OpenWeaponsMenu(int client)
 {
-	if (client) { }
+	Menu menu = new Menu(MenuHandler_Weapons);
+	menu.SetTitle("Pick a weapon:");
+
+	char sID[16];
+	for (int i = 0; i < g_TotalCustomWeapons; i++)
+	{
+		IntToString(i, sID, sizeof(sID));
+		menu.AddItem(sID, g_CustomWeapons[i].name);
+	}
+
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_Weapons(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			char sID[16];
+			menu.GetItem(param2, sID, sizeof(sID));
+			TF2Items_OpenInfoPanel(param1, g_CustomWeapons[StringToInt(sID)].name, false);
+		}
+		case MenuAction_End:
+			delete menu;
+	}
 }
 
 void OpenInfoPanel(int client)
