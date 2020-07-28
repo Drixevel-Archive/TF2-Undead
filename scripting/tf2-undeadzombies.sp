@@ -129,6 +129,8 @@ int g_DisableBuilding[MAX_ENTITY_LIMIT + 1] = {-1, ...}; //Buildings
 
 Handle g_BlockDispenserMetal;
 
+StringMap g_PackaPunchUpgrades;
+
 char sModels[10][PLATFORM_MAX_PATH] =
 {
 	"",
@@ -717,27 +719,39 @@ enum struct Player
 
 			if (IsValidEntity(weapon))
 			{
-				Address attr;
-				if ((attr = TF2Attrib_GetByName(weapon, "damage bonus")) != Address_Null)
-					TF2Attrib_SetByName(weapon, "damage bonus", TF2Attrib_GetValue(attr) + 0.15);
-				else
-					TF2Attrib_SetByName(weapon, "damage bonus", 1.15);
-				
-				TF2Attrib_SetFireRateBonus(weapon, 0.07);
+				char sEntity[64];
+				IntToString(weapon, sEntity, sizeof(sEntity));
 
-				if ((attr = TF2Attrib_GetByName(weapon, "Reload time decreased")) != Address_Null)
-					TF2Attrib_SetByName(weapon, "Reload time decreased", TF2Attrib_GetValue(attr) - 0.15);
-				else
-					TF2Attrib_SetByName(weapon, "Reload time decreased", 0.85);
-				
-				TF2Attrib_SetByDefIndex(weapon, 134, g_SpawnedWeapons[weapon].particle);
+				int value;
+				g_PackaPunchUpgrades.GetValue(sEntity, value);
 
-				TF2Items_RefillMag(weapon);
-				TF2Items_RefillAmmo(this.client, weapon);
+				if (value < 4)
+				{
+					value++;
+					g_PackaPunchUpgrades.SetValue(sEntity, value);
+
+					Address attr;
+					if ((attr = TF2Attrib_GetByName(weapon, "damage bonus")) != Address_Null)
+						TF2Attrib_SetByName(weapon, "damage bonus", TF2Attrib_GetValue(attr) + 0.15);
+					else
+						TF2Attrib_SetByName(weapon, "damage bonus", 1.15);
+					
+					TF2Attrib_SetFireRateBonus(weapon, 0.07);
+
+					if ((attr = TF2Attrib_GetByName(weapon, "Reload time decreased")) != Address_Null)
+						TF2Attrib_SetByName(weapon, "Reload time decreased", TF2Attrib_GetValue(attr) - 0.15);
+					else
+						TF2Attrib_SetByName(weapon, "Reload time decreased", 0.85);
+					
+					TF2Attrib_SetByDefIndex(weapon, 134, g_SpawnedWeapons[weapon].particle);
+
+					TF2Items_RefillMag(weapon);
+					TF2Items_RefillAmmo(this.client, weapon);
+
+					if (!noanims)
+						ActivateAnimation(this.client, "packapunch", weapon);
+				}
 			}
-
-			if (!noanims)
-				ActivateAnimation(this.client, "packapunch", weapon);
 		}
 		else if (StrEqual(name, "staminup", false))
 		{
@@ -1232,6 +1246,8 @@ public void OnPluginStart()
 
 	g_BlockDispenserMetal = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, DispenseMetal);
 	DHookAddParam(g_BlockDispenserMetal, HookParamType_CBaseEntity, _, DHookPass_ByRef);
+
+	g_PackaPunchUpgrades = new StringMap();
 
 	g_Sync_NearInteractable = new Hud();
 
@@ -2383,6 +2399,13 @@ public void OnEntityCreated(int entity, const char[] classname)
 	{
 		g_Machines[entity].Reset();
 		g_SpawnedWeapons[entity].Reset();
+
+		if (entity > MaxClients)
+		{
+			char sEntity[64];
+			IntToString(entity, sEntity, sizeof(sEntity));
+			g_PackaPunchUpgrades.SetValue(sEntity, 0);
+		}
 	}
 }
 
@@ -2445,8 +2468,11 @@ public void OnEntityDestroyed(int entity)
 			StopSound(entity, SNDCHAN_USER_BASE + 14, "undead/powerups/powerup_loop.wav");
 		
 		g_PowerupIndex[entity] = -1;
+
+		char sEntity[64];
+		IntToString(entity, sEntity, sizeof(sEntity));
+		g_PackaPunchUpgrades.SetValue(sEntity, 0);
 	}
-	
 }
 
 public Action Command_RandomZombie(int client, int args)
@@ -3497,6 +3523,10 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 			
 			if (g_Player[client].melee != -1)
 				GiveCustomWeapon(client, g_Player[client].melee);
+			
+			g_Player[client].primary = -1;
+			g_Player[client].secondary = -1;
+			g_Player[client].melee = -1;
 
 			g_Player[client].ApplyPerks(true);
 		}
@@ -3919,11 +3949,24 @@ public Action TF2_OnCallMedic(int client)
 
 		bool doublepoints = g_Player[client].doublepoints != -1 && g_Player[client].doublepoints > GetTime();
 
+		int active = GetActiveWeapon(client);
+
+		char sEntity[64];
+		IntToString(active, sEntity, sizeof(sEntity));
+
+		int value;
+		g_PackaPunchUpgrades.GetValue(sEntity, value);
+
 		if (g_Machines[entity].index == g_Match.coins_machine && GetEntityFlags(client) & FL_DUCKING)
 		{
 			g_Player[client].AddPoints(doublepoints ? 100 : 50);
 			EmitGameSoundToAll("MVM.MoneyPickup", client);
 			g_Match.coins_machine = -1;
+		}
+		else if (value >= 4)
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			PrintErrorMessage(client, "This weapon is max level for packapunch.");
 		}
 		else if (!g_Player[client].RemovePoints(g_Machines[entity].price))
 		{
