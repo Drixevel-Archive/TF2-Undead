@@ -1,8 +1,5 @@
 /*
-Packapunch should work for 1 weapon 4 times.
 Hudsync bugs to look into.
-Max Ammo has bugs.
-List of weapons in the undead menu.
 */
 
 /*****************************/
@@ -3910,15 +3907,18 @@ public void OnGameFrame()
 
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "obj_*")) != -1)
-		OnBuildingTick(entity);
+		if (g_InteractableType[entity] == INTERACTABLE_TYPE_BUILDING)
+			OnBuildingTick(entity);
 	
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
-		OnDoorTick(entity);
+		if (g_InteractableType[entity] == INTERACTABLE_TYPE_DOORS)
+			OnDoorTick(entity);
 	
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
-		OnDoorTick(entity);
+		if (g_InteractableType[entity] == INTERACTABLE_TYPE_DOORS)
+			OnDoorTick(entity);
 	
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "tf_halloween_pickup")) != -1)
@@ -5312,11 +5312,13 @@ void SetupDoors()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
-		g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
+		if (HasName(entity, "unlock_door_"))
+			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 	
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
-		g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
+		if (HasName(entity, "unlock_door_"))
+			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 }
 
 void OnDoorTick(int entity)
