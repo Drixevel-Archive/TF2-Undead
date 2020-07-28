@@ -2557,7 +2557,10 @@ bool GetRandomSpawn(float origin[3])
 		
 		if (GetCustomKeyValue(entity, "und_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0)
 		{
-			if ((required_door_ent = FindEntityByName(required_door)) != -1 && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
+			if ((required_door_ent = FindEntityByName(required_door)) != -1 && HasEntProp(required_door_ent, Prop_Data, "m_eDoorState") && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
+				continue;
+			
+			if ((required_door_ent = FindEntityByName(required_door)) != -1 && HasEntProp(required_door_ent, Prop_Data, "m_toggle_state") && GetEntProp(required_door_ent, Prop_Data, "m_toggle_state") != 1)
 				continue;
 		}
 		
@@ -5323,6 +5326,12 @@ void SetupDoors()
 
 void OnDoorTick(int entity)
 {
+	if (HasEntProp(entity, Prop_Data, "m_eDoorState") && GetEntProp(entity, Prop_Data, "m_eDoorState") != 2)
+		return;
+
+	if (HasEntProp(entity, Prop_Data, "m_toggle_state") && GetEntProp(entity, Prop_Data, "m_toggle_state") != 1)
+		return;
+
 	char sCost[64];
 	GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
 
