@@ -4548,7 +4548,17 @@ int GiveCustomWeapon(int client, int index)
 {
 	int weapon = -1;
 	if ((weapon = TF2Items_GiveItem(client, g_CustomWeapons[index].name)) != -1)
+	{
 		g_WeaponIndex[weapon] = index;
+		InspectWeapon(client);
+	}
+}
+
+void InspectWeapon(int client)
+{
+	KeyValues kv = new KeyValues("inspect_weapon");
+	kv.SetSectionName("+inspect_server");
+	FakeClientCommandKeyValues(client, kv);
 }
 
 /****************************************/
@@ -6562,6 +6572,7 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 	{
 		EquipWeapon(client, weapon);
 		TF2_RemoveCondition(client, TFCond_FreezeInput);
+		InspectWeapon(client);
 
 		SetVariantInt(0);
 		AcceptEntityInput(client, "SetForcedTauntCam");
