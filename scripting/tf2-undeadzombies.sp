@@ -28,6 +28,7 @@ Add configurations support for difficulties, zombie types, machines, powerups an
 #define INTERACTABLE_TYPE_SECRETBOX 2
 #define INTERACTABLE_TYPE_PLANK 3
 #define INTERACTABLE_TYPE_BUILDING 4
+#define INTERACTABLE_TYPE_DOORS 5
 
 #define TEAM_ZOMBIES 2
 #define TEAM_SURVIVORS 3
@@ -85,6 +86,7 @@ Add configurations support for difficulties, zombie types, machines, powerups an
 #define STAT_REVIVED "revived"
 #define STAT_POWERUP "powerups_pickedup"
 #define STAT_TEAMMATES "total_teammates"
+#define STAT_DOORS "doors_opened"
 
 /*****************************/
 //Includes
@@ -1250,6 +1252,7 @@ public void OnPluginStart()
 	statistics.PushString(STAT_REVIVED);
 	statistics.PushString(STAT_POWERUP);
 	statistics.PushString(STAT_TEAMMATES);
+	statistics.PushString(STAT_DOORS);
 
 	statisticsnames = new StringMap();
 	statisticsnames.SetString(STAT_KILLS, "Total Kills");
@@ -1268,6 +1271,7 @@ public void OnPluginStart()
 	statisticsnames.SetString(STAT_REVIVED, "Revived By Teammates");
 	statisticsnames.SetString(STAT_POWERUP, "Powerups Received");
 	statisticsnames.SetString(STAT_TEAMMATES, "Teammates Gained");
+	statisticsnames.SetString(STAT_DOORS, "Doors Opened");
 
 	//TODO: Use this instead.
 	g_TotalStatistics = 0;
@@ -1287,6 +1291,7 @@ public void OnPluginStart()
 	g_Statistics[g_TotalStatistics].CreateStatistic("Revived", "Revived By Teammates", "revived");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Powerups Pickedup", "Powerups Received", "powerups_pickedup");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Total Teammates", "Teammates Gained", "total_teammates");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Doors Opened", "Doors Unlocked", "doors_opened");
 
 	for (int i = 0; i < MAX_NPCS; i++)
 		g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
@@ -1371,7 +1376,7 @@ public void OnSQLConnect(Database db, const char[] error, any data)
 	g_Database = db;
 	LogMessage("Connected to database successfully.");
 
-	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `server` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `secretboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
+	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `server` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `secretboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , `doors_opened` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
 }
 
 public void OnCreateTable(Database db, DBResultSet results, const char[] error, any data)
@@ -1961,6 +1966,7 @@ public Action Timer_RoundTimer(Handle timer)
 			SpawnSecretBoxes();
 			SpawnPlanks();
 			SetupBuildings();
+			SetupDoors();
 
 			CloseBonusDoor();
 
@@ -2197,7 +2203,7 @@ void SaveStatistics()
 		if (!GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
 			continue;
 
-		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, server, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, secretboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates) VALUES ('%s', '%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, sServerIP, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_SECRETBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), g_Player[i].GetStat(STAT_DAMAGE), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES));
+		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, server, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, secretboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates, doors_opened) VALUES ('%s', '%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, sServerIP, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_SECRETBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), g_Player[i].GetStat(STAT_DAMAGE), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES), g_Player[i].GetStat(STAT_DOORS));
 		g_Database.Query(OnSaveStats, sQuery);
 
 		g_Player[i].ResetStats();
@@ -3872,6 +3878,14 @@ public void OnGameFrame()
 		OnBuildingTick(entity);
 	
 	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
+		OnDoorTick(entity);
+	
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
+		OnDoorTick(entity);
+	
+	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "tf_halloween_pickup")) != -1)
 	{
 		for (int i = 1; i <= MaxClients; i++)
@@ -4079,6 +4093,39 @@ public Action TF2_OnCallMedic(int client)
 
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_BUILDINGS, 1);
+			
+			g_Player[client].nearinteractable = -1;
+			g_Sync_NearInteractable.Clear(client);
+		}
+	}
+
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_DOORS)
+	{
+		int entity = near;
+	
+		char sCost[64];
+		GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
+		
+		if (!g_Player[client].RemovePoints(StringToInt(sCost)))
+		{
+			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+		}
+		else
+		{
+			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+
+			AcceptEntityInput(entity, "Open");
+			CPrintToChat(client, "You have opened this {haunted}door{default}.");
+
+			float origin[3];
+			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+
+			char sAnno[64];
+			FormatEx(sAnno, sizeof(sAnno), "Door Opened");
+			TF2_CreateAnnotationToAll(origin, sAnno, 5.0, "vo/null.wav");
+
+			if (IsPlayerIndex(client))
+				g_Player[client].AddStat(STAT_DOORS, 1);
 			
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
@@ -5199,7 +5246,63 @@ void OnBuildingTick(int entity)
 	}
 }
 
+/****************************************/
+//Doors
+/****************************************/
+
+void SetupDoors()
+{
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
+		g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
+	
+	entity = -1;
+	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
+		g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
+}
+
+void OnDoorTick(int entity)
+{
+	char sCost[64];
+	GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
+
+	int unlock = GetWaveUnlockInt(entity);
+
+	float fOrigin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", fOrigin);
+
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS)
+			continue;
+		
+		if (IsVisibleTo(i, entity, 120.0, false))
+		{
+			if (unlock <= g_Match.round + 1)
+			{
+				g_Player[i].nearinteractable = entity;
+
+				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this door for %i points!", StringToInt(sCost));
+			}
+			else
+			{
+				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
+				g_Sync_NearInteractable.Send(i, "[Door locked until round %i]", unlock);
+			}
+		}
+		else if (g_Player[i].nearinteractable == entity)
+		{
+			g_Player[i].nearinteractable = -1;
+			g_Sync_NearInteractable.Clear(i);
+		}
+	}
+}
+
+/****************************************/
 //Misc
+/****************************************/
+
 void KillAllZombies()
 {
 	int entity = -1; CBaseNPC npc;
@@ -6571,7 +6674,7 @@ void ShowGlobalStatistics(int client)
 		return;
 	
 	char sQuery[512];
-	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates) FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
 	g_Database.Query(OnParseGlobalStatistics, sQuery, GetClientUserId(client));
 }
 
@@ -6585,7 +6688,7 @@ void ShowServerStatistics(int client)
 	GetServerIP(sServerIP, sizeof(sServerIP), true);
 	
 	char sQuery[512];
-	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates) FROM `undead_statistics` WHERE steamid = '%s' ANd server = '%s';", sSteamID, sServerIP);
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s' ANd server = '%s';", sSteamID, sServerIP);
 	g_Database.Query(OnParseServerStatistics, sQuery, GetClientUserId(client));
 }
 
