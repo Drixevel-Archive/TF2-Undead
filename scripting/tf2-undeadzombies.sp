@@ -2086,7 +2086,7 @@ int GetWaveUnlockInt(int entity)
 		return -1;
 	
 	char sWave[32];
-	if (!GetCustomKeyValue(entity, "und_unlock_on_wave", sWave, sizeof(sWave)))
+	if (!GetCustomKeyValue(entity, "udm_unlock_on_wave", sWave, sizeof(sWave)))
 		return -1;
 	
 	int wave = StringToInt(sWave);
@@ -2574,7 +2574,7 @@ bool GetRandomSpawn(float origin[3])
 	int entity = -1; int unlock; char required_door[64]; int required_door_ent;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
 	{
-		if (!HasName(entity, "und_zombie"))
+		if (!HasName(entity, "udm_zombie"))
 			continue;
 		
 		unlock = GetWaveUnlockInt(entity);
@@ -2582,7 +2582,7 @@ bool GetRandomSpawn(float origin[3])
 		if (unlock != -1 && unlock > g_Match.round)
 			continue;
 		
-		if (GetCustomKeyValue(entity, "und_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0)
+		if (GetCustomKeyValue(entity, "udm_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0)
 		{
 			if ((required_door_ent = FindEntityByName(required_door)) != -1 && HasEntProp(required_door_ent, Prop_Data, "m_eDoorState") && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
 				continue;
