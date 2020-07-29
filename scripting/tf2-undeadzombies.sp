@@ -2299,6 +2299,8 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 				g_Player[client].revivetimer = CreateDataTimer(60.0, Timer_DeleteMarker, pack, TIMER_FLAG_NO_MAPCHANGE);
 				pack.WriteCell(GetClientUserId(client));
 				pack.WriteCell(EntIndexToEntRef(entity));
+
+				g_Player[client].perks.Clear();
 			}
 		}
 
@@ -3553,7 +3555,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 			g_Player[client].secondary = -1;
 			g_Player[client].melee = -1;
 
-			g_Player[client].ApplyPerks(true);
+			//g_Player[client].ApplyPerks(true);
 		}
 
 		//g_Player[client].CreateGlow();
