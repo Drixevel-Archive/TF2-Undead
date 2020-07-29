@@ -21,7 +21,7 @@ Hudsync bugs to look into.
 
 #define INTERACTABLE_TYPE_MACHINE 0
 #define INTERACTABLE_TYPE_WEAPON 1
-#define INTERACTABLE_TYPE_SECRETBOX 2
+#define INTERACTABLE_TYPE_MYSTERYBOX 2
 #define INTERACTABLE_TYPE_PLANK 3
 #define INTERACTABLE_TYPE_BUILDING 4
 #define INTERACTABLE_TYPE_DOORS 5
@@ -71,7 +71,7 @@ Hudsync bugs to look into.
 #define STAT_REVIVES "revives"
 #define STAT_MACHINES "machines_bought"
 #define STAT_WEAPONS "weapons_bought"
-#define STAT_SECRETBOXES "secretboxes_opened"
+#define STAT_MYSTERYBOXES "mysteryboxes_opened"
 #define STAT_PLANKS "planks_rebuilt"
 #define STAT_BUILDINGS "buildings_rented"
 #define STAT_GAINED "points_gained"
@@ -181,11 +181,11 @@ char sBloodParticles[5][64] =
 char sHints[17][128] =
 {
 	"Revive your teammates by standing near their revive markers.",
-	"Interact with weapons, machines, buildings and the secret weapons chest by pressing 'MEDIC!' near them.",
+	"Interact with weapons, machines, buildings and the mystery box by pressing 'MEDIC!' near them.",
 	"Powerups sometimes drop when you kill zombies, pick them up to receive perks.",
 	"Walk up to planks and press 'MEDIC!' to rebuild planks and gain points.",
 	"Gain 10 points by hurting zombies and 100 points by killing zombies.",
-	"Interact with a secret box to gain a random weapon, press 'MEDIC!' once a weapon is chosen to pick it up... or not.",
+	"Interact with a mystery box to gain a random weapon, press 'MEDIC!' once a weapon is chosen to pick it up... or not.",
 	"The machine 'Quick Revive' perk allows you to revive players at double the speeds.",
 	"The machine 'Speed Cola' perk allows you to reload and deploy your weapons faster.",
 	"The machine 'Juggernog' perk allows you to double your health pool.",
@@ -1081,14 +1081,14 @@ enum struct CustomWeaponsData
 {
 	char name[64];
 	float offset_angles[3];
-	bool secret_box;
+	bool mystery_box;
 }
 
 CustomWeaponsData g_CustomWeapons[MAX_WEAPONS];
 int g_TotalCustomWeapons;
 
-//SecretBox
-enum struct SecretBox
+//mysterybox
+enum struct MysteryBox
 {
 	bool status;
 	int price;
@@ -1106,7 +1106,7 @@ enum struct SecretBox
 	}
 }
 
-SecretBox g_SecretBox[MAX_ENTITY_LIMIT + 1];
+MysteryBox g_MysteryBox[MAX_ENTITY_LIMIT + 1];
 
 //Powerups
 enum struct Powerups
@@ -1257,7 +1257,7 @@ public void OnPluginStart()
 	statistics.PushString(STAT_REVIVES);
 	statistics.PushString(STAT_MACHINES);
 	statistics.PushString(STAT_WEAPONS);
-	statistics.PushString(STAT_SECRETBOXES);
+	statistics.PushString(STAT_MYSTERYBOXES);
 	statistics.PushString(STAT_PLANKS);
 	statistics.PushString(STAT_BUILDINGS);
 	statistics.PushString(STAT_GAINED);
@@ -1276,7 +1276,7 @@ public void OnPluginStart()
 	statisticsnames.SetString(STAT_REVIVES, "Revives Done");
 	statisticsnames.SetString(STAT_MACHINES, "Machines Unlocked");
 	statisticsnames.SetString(STAT_WEAPONS, "Weapons Picked Up");
-	statisticsnames.SetString(STAT_SECRETBOXES, "Secret Box Openings");
+	statisticsnames.SetString(STAT_MYSTERYBOXES, "Mystery Box Openings");
 	statisticsnames.SetString(STAT_PLANKS, "Planks Rebuilt");
 	statisticsnames.SetString(STAT_BUILDINGS, "Buildings Unlocked");
 	statisticsnames.SetString(STAT_GAINED, "Points Gained Total");
@@ -1296,7 +1296,7 @@ public void OnPluginStart()
 	g_Statistics[g_TotalStatistics].CreateStatistic("Revives", "Revives Done", "revives");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Machines Bought", "Machines Unlocked", "machines_bought");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Weapons Bought", "Weapons Picked Up", "weapons_bought");
-	g_Statistics[g_TotalStatistics].CreateStatistic("Secretboxes Bought", "Secret Box Openings", "secretboxes_opened");
+	g_Statistics[g_TotalStatistics].CreateStatistic("Mysteryboxes Bought", "Mystery Box Openings", "mysteryboxes_opened");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Planks Rebuilt", "Planks Rebuilt", "planks_rebuilt");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Buildings Rented", "Buildings Unlocked", "buildings_rented");
 	g_Statistics[g_TotalStatistics].CreateStatistic("Points Gained", "Points Gained Total", "points_gained");
@@ -1392,7 +1392,7 @@ public void OnSQLConnect(Database db, const char[] error, any data)
 	g_Database = db;
 	LogMessage("Connected to database successfully.");
 
-	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `server` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `secretboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , `doors_opened` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
+	g_Database.Query(OnCreateTable, "CREATE TABLE IF NOT EXISTS `undead_statistics` ( `id` INT NOT NULL AUTO_INCREMENT , `steamid` VARCHAR(64) NOT NULL , `server` VARCHAR(64) NOT NULL , `team` INT NOT NULL , `difficulty` VARCHAR(64) NOT NULL , `kills` INT NOT NULL , `deaths` INT NOT NULL , `revives` INT NOT NULL , `machines_bought` INT NOT NULL , `weapons_bought` INT NOT NULL , `mysteryboxes_opened` INT NOT NULL , `planks_rebuilt` INT NOT NULL , `buildings_rented` INT NOT NULL , `points_gained` INT NOT NULL , `points_spent` INT NOT NULL , `damage` INT NOT NULL , `waves_won` INT NOT NULL , `specials_killed` INT NOT NULL , `revived` INT NOT NULL , `powerups_pickedup` INT NOT NULL , `total_teammates` INT NOT NULL , `doors_opened` INT NOT NULL , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
 }
 
 public void OnCreateTable(Database db, DBResultSet results, const char[] error, any data)
@@ -1500,7 +1500,7 @@ public void OnPluginEnd()
 	KillAllZombies();
 	DestroyMachines();
 	DestroyWeapons();
-	DestroySecretBoxes();
+	DestroyMysteryBoxes();
 	DestroyPowerups();
 
 	for (int i = 1; i <= MaxClients; i++)
@@ -1769,7 +1769,7 @@ public void OnMapStart()
 	AddFileToDownloadsTable("sound/undead/powerups/powerup_spawn.wav");
 
 	//////////
-	//Secret Boxes
+	//Mystery Boxes
 	PrecacheModel("models/noobis/mystery_box/mystery_box.mdl");
 	AddFileToDownloadsTable("models/noobis/mystery_box/mystery_box.mdl");
 	AddFileToDownloadsTable("models/noobis/mystery_box/mystery_box.dx80.vtx");
@@ -1980,7 +1980,7 @@ public Action Timer_RoundTimer(Handle timer)
 
 			SpawnMachines();
 			SpawnWeapons();
-			SpawnSecretBoxes();
+			SpawnMysteryBoxes();
 			SpawnPlanks();
 			SetupBuildings();
 			SetupDoors();
@@ -2220,7 +2220,7 @@ void SaveStatistics()
 		if (!GetClientAuthId(i, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
 			continue;
 
-		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, server, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, secretboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates, doors_opened) VALUES ('%s', '%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, sServerIP, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_SECRETBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), g_Player[i].GetStat(STAT_DAMAGE), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES), g_Player[i].GetStat(STAT_DOORS));
+		g_Database.Format(sQuery, sizeof(sQuery), "INSERT INTO `undead_statistics` (steamid, server, team, difficulty, kills, deaths, revives, machines_bought, weapons_bought, mysteryboxes_opened, planks_rebuilt, buildings_rented, points_gained, points_spent, damage, waves_won, specials_killed, revived, powerups_pickedup, total_teammates, doors_opened) VALUES ('%s', '%s', '%i', '%s', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i', '%i');", sSteamID, sServerIP, GetClientTeam(i), g_Difficulty[g_Match.difficulty].name, g_Player[i].GetStat(STAT_KILLS), g_Player[i].GetStat(STAT_DEATHS), g_Player[i].GetStat(STAT_REVIVES), g_Player[i].GetStat(STAT_MACHINES), g_Player[i].GetStat(STAT_WEAPONS), g_Player[i].GetStat(STAT_MYSTERYBOXES), g_Player[i].GetStat(STAT_PLANKS), g_Player[i].GetStat(STAT_BUILDINGS), g_Player[i].GetStat(STAT_GAINED), g_Player[i].GetStat(STAT_SPENT), g_Player[i].GetStat(STAT_DAMAGE), g_Player[i].GetStat(STAT_WAVES), g_Player[i].GetStat(STAT_SPECIALS), g_Player[i].GetStat(STAT_REVIVED), g_Player[i].GetStat(STAT_POWERUP), g_Player[i].GetStat(STAT_TEAMMATES), g_Player[i].GetStat(STAT_DOORS));
 		g_Database.Query(OnSaveStats, sQuery);
 
 		g_Player[i].ResetStats();
@@ -3928,8 +3928,8 @@ public void OnGameFrame()
 			OnMachineTick(entity);
 		else if (g_SpawnedWeapons[entity].index != -1)
 			OnWeaponTick(entity);
-		else if (g_SecretBox[entity].status)
-			OnSecretBoxTick(entity);
+		else if (g_MysteryBox[entity].status)
+			OnMysteryBoxTick(entity);
 	}
 
 	entity = -1;
@@ -4076,23 +4076,23 @@ public Action TF2_OnCallMedic(int client)
 		}
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_SECRETBOX)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MYSTERYBOX)
 	{
 		int entity = near;
 
-		if (g_SecretBox[entity].inuse || !g_Player[client].RemovePoints(g_SecretBox[entity].price))
+		if (g_MysteryBox[entity].inuse || !g_Player[client].RemovePoints(g_MysteryBox[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
 		}
 		else
 		{
-			StartSecretBoxEvent(client, entity);
+			OpenMysteryBox(client, entity);
 			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-			CPrintToChat(client, "You have opened the {haunted}Weapons Chest{default}.");
+			CPrintToChat(client, "You have opened the {haunted}Mystery Box{default}.");
 
 			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_SECRETBOXES, 1);
+				g_Player[client].AddStat(STAT_MYSTERYBOXES, 1);
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
@@ -4418,7 +4418,7 @@ void ParseWeapons()
 			kv.GetSectionName(g_CustomWeapons[g_TotalCustomWeapons].name, 64);
 			g_CustomWeapons[g_TotalCustomWeapons].name[0] = CharToUpper(g_CustomWeapons[g_TotalCustomWeapons].name[0]);
 			kv.GetVector("offset_angles", g_CustomWeapons[g_TotalCustomWeapons].offset_angles);
-			g_CustomWeapons[g_TotalCustomWeapons].secret_box = view_as<bool>(kv.GetNum("secret_box"));
+			g_CustomWeapons[g_TotalCustomWeapons].mystery_box = view_as<bool>(kv.GetNum("mystery_box"));
 			g_TotalCustomWeapons++;
 		}
 		while (kv.GotoNextKey());
@@ -4857,10 +4857,10 @@ void DestroyPowerups()
 }
 
 /****************************************/
-//Secret Box
+//Mystery Box
 /****************************************/
 
-void SpawnSecretBoxes()
+void SpawnMysteryBoxes()
 {
 	int entity = -1; int unlock;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
@@ -4878,24 +4878,24 @@ void SpawnSecretBoxes()
 		GetEntityAngles(entity, angles);
 		angles[1] = 270.0;
 
-		int secretbox = CreateEntityByName("prop_dynamic_override");
-		DispatchKeyValue(secretbox, "model", "models/noobis/mystery_box/mystery_box.mdl");
-		DispatchKeyValueVector(secretbox, "origin", origin);
-		DispatchKeyValueVector(secretbox, "angles", angles);
-		DispatchSpawn(secretbox);
+		int mysterybox = CreateEntityByName("prop_dynamic_override");
+		DispatchKeyValue(mysterybox, "model", "models/noobis/mystery_box/mystery_box.mdl");
+		DispatchKeyValueVector(mysterybox, "origin", origin);
+		DispatchKeyValueVector(mysterybox, "angles", angles);
+		DispatchSpawn(mysterybox);
 		
-		g_SecretBox[secretbox].status = true;
-		g_SecretBox[secretbox].price = 1000;
-		g_SecretBox[secretbox].inuse = false;
-		g_SecretBox[secretbox].glow = TF2_CreateGlow("secretbox_color", secretbox, view_as<int>({255, 200, 255, 150}));
-		g_SecretBox[secretbox].unlock = unlock;
-		g_InteractableType[secretbox] = INTERACTABLE_TYPE_SECRETBOX;
+		g_MysteryBox[mysterybox].status = true;
+		g_MysteryBox[mysterybox].price = 1000;
+		g_MysteryBox[mysterybox].inuse = false;
+		g_MysteryBox[mysterybox].glow = TF2_CreateGlow("mysterybox_color", mysterybox, view_as<int>({255, 200, 255, 150}));
+		g_MysteryBox[mysterybox].unlock = unlock;
+		g_InteractableType[mysterybox] = INTERACTABLE_TYPE_MYSTERYBOX;
 	}
 }
 
-void OnSecretBoxTick(int entity)
+void OnMysteryBoxTick(int entity)
 {
-	int unlock = g_SecretBox[entity].unlock;
+	int unlock = g_MysteryBox[entity].unlock;
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -4909,12 +4909,12 @@ void OnSecretBoxTick(int entity)
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this box for %i points!", g_SecretBox[entity].price);
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this mystery box for %i points!", g_MysteryBox[entity].price);
 			}
 			else
 			{
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "[Secret Crate locked until round %i]", unlock);
+				g_Sync_NearInteractable.Send(i, "[Mystery Box locked until round %i]", unlock);
 			}
 		}
 		else if (g_Player[i].nearinteractable == entity)
@@ -4925,33 +4925,33 @@ void OnSecretBoxTick(int entity)
 	}
 }
 
-void DestroySecretBoxes()
+void DestroyMysteryBoxes()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_dynamic")) != -1)
 	{
-		if (g_SecretBox[entity].status)
+		if (g_MysteryBox[entity].status)
 			AcceptEntityInput(entity, "Kill");
 		
-		g_SecretBox[entity].Reset();
+		g_MysteryBox[entity].Reset();
 	}	
 }
 
-void StartSecretBoxEvent(int client, int secretbox)
+void OpenMysteryBox(int client, int mysterybox)
 {
-	int index = GetRandomSecretWeapon(client);
+	int index = GetRandomMysteryWeapon(client);
 
 	if (index == -1)
 		return;
 
-	g_SecretBox[secretbox].inuse = true;
-	AcceptEntityInput(g_SecretBox[secretbox].glow, "Disable");
+	g_MysteryBox[mysterybox].inuse = true;
+	AcceptEntityInput(g_MysteryBox[mysterybox].glow, "Disable");
 
-	AnimateEntity(secretbox, "opening");
-	EmitSoundToAll("undead/mystery_box.wav", secretbox);
+	AnimateEntity(mysterybox, "opening");
+	EmitSoundToAll("undead/mystery_box.wav", mysterybox);
 
 	float origin[3];
-	GetEntityOrigin(secretbox, origin);
+	GetEntityOrigin(mysterybox, origin);
 
 	int display = CreateEntityByName("prop_dynamic_override");
 	DispatchKeyValueVector(display, "origin", origin);
@@ -4968,21 +4968,21 @@ void StartSecretBoxEvent(int client, int secretbox)
 	TF2_CreateGlow("display_color", display, {255, 255, 255, 200});
 	
 	DataPack pack;
-	CreateDataTimer(0.1, Timer_SecretBox, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	CreateDataTimer(0.1, Timer_MysteryBox, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	pack.WriteCell(GetClientUserId(client));
-	pack.WriteCell(EntIndexToEntRef(secretbox));
+	pack.WriteCell(EntIndexToEntRef(mysterybox));
 	pack.WriteCell(EntIndexToEntRef(display));
 	pack.WriteCell(index);
 	pack.WriteCell(0); //phase
 	pack.WriteFloat(0.0); //tick
 }
 
-public Action Timer_SecretBox(Handle timer, DataPack pack)
+public Action Timer_MysteryBox(Handle timer, DataPack pack)
 {
 	pack.Reset();
 
 	int client = GetClientOfUserId(pack.ReadCell());
-	int secretbox = EntRefToEntIndex(pack.ReadCell());
+	int mysterybox = EntRefToEntIndex(pack.ReadCell());
 	int display = EntRefToEntIndex(pack.ReadCell());
 	int index = pack.ReadCell();
 	int phase = pack.ReadCell();
@@ -4990,9 +4990,9 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 
 	ticks += 0.1;
 
-	if (!IsPlayerIndex(client) || !IsValidEntity(secretbox) || !IsValidEntity(display))
+	if (!IsPlayerIndex(client) || !IsValidEntity(mysterybox) || !IsValidEntity(display))
 	{
-		CloseSecretBox(display, secretbox);
+		CloseMysteryBox(display, mysterybox);
 		return Plugin_Stop;
 	}
 
@@ -5001,7 +5001,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 
 	if (ticks >= 15.0)
 	{
-		CloseSecretBox(display, secretbox);
+		CloseMysteryBox(display, mysterybox);
 		return Plugin_Stop;
 	}
 	else if (ticks >= 5.0)
@@ -5014,7 +5014,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 	
 	if (phase == 0)
 	{
-		index = GetRandomSecretWeapon(client);
+		index = GetRandomMysteryWeapon(client);
 
 		origin[2] += 0.8;
 		DispatchKeyValueVector(display, "origin", origin);
@@ -5034,7 +5034,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 		float time = GetGameTime();
 		if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
 		{
-			PrintSilentHint(client, "Press 'MEDIC!' near the secret box to pick up the weapon.");
+			PrintSilentHint(client, "Press 'MEDIC!' near the mystery box to pick up the weapon.");
 			g_Player[client].delayhint = time + 1.0;
 		}
 
@@ -5042,19 +5042,19 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 		GetClientAbsOrigin(client, playerorigin);
 
 		float boxorigin[3];
-		GetEntPropVector(secretbox, Prop_Send, "m_vecOrigin", boxorigin);
+		GetEntPropVector(mysterybox, Prop_Send, "m_vecOrigin", boxorigin);
 
 		if (g_Player[client].interact != -1 && g_Player[client].interact > GetTime() && GetVectorDistance(playerorigin, boxorigin) <= 120.0)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 			GiveCustomWeapon(client, index);
-			CloseSecretBox(display, secretbox);
+			CloseMysteryBox(display, mysterybox);
 		}
 	}
 
 	pack.Reset();
 	pack.WriteCell(GetClientUserId(client));
-	pack.WriteCell(EntIndexToEntRef(secretbox));
+	pack.WriteCell(EntIndexToEntRef(mysterybox));
 	pack.WriteCell(EntIndexToEntRef(display));
 	pack.WriteCell(index);
 	pack.WriteCell(phase);
@@ -5063,20 +5063,20 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 	return Plugin_Continue;
 }
 
-void CloseSecretBox(int display, int secretbox)
+void CloseMysteryBox(int display, int mysterybox)
 {
 	if (IsValidEntity(display))
 		AcceptEntityInput(display, "Kill");
 		
-	if (IsValidEntity(secretbox))
+	if (IsValidEntity(mysterybox))
 	{
-		AnimateEntity(secretbox, "closing");
-		AcceptEntityInput(g_SecretBox[secretbox].glow, "Enable");
-		g_SecretBox[secretbox].inuse = false;
+		AnimateEntity(mysterybox, "closing");
+		AcceptEntityInput(g_MysteryBox[mysterybox].glow, "Enable");
+		g_MysteryBox[mysterybox].inuse = false;
 	}
 }
 
-int GetRandomSecretWeapon(int client)
+int GetRandomMysteryWeapon(int client)
 {
 	char sClass[32];
 	TF2_GetClientClassName(client, sClass, sizeof(sClass));
@@ -5087,7 +5087,7 @@ int GetRandomSecretWeapon(int client)
 	char sClasses[2048];
 	for (int i = 0; i <= g_TotalCustomWeapons; i++)
 	{
-		if (g_CustomWeapons[i].secret_box)
+		if (g_CustomWeapons[i].mystery_box)
 		{
 			TF2Items_GetItemKeyString(g_CustomWeapons[i].name, "classes", sClasses, sizeof(sClasses));
 
@@ -5775,7 +5775,7 @@ void OpenMainMenu(int client)
 	menu.AddItem("type", "What are the types of zombies?");
 	menu.AddItem("machines", "What do the Machines do?");
 	menu.AddItem("powerups", "What do the Powerups do?");
-	menu.AddItem("secret_box", "What does the Secret Box do?");
+	menu.AddItem("mystery_box", "What does the Mystery Box do?");
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }
@@ -5801,8 +5801,8 @@ public int MenuHandler_Main(Menu menu, MenuAction action, int param1, int param2
 				OpenMachinesPanel(param1);
 			else if (StrEqual(sInfo, "powerups", false))
 				OpenPowerupsPanel(param1);
-			else if (StrEqual(sInfo, "secret_box", false))
-				OpenSecretBoxPanel(param1);
+			else if (StrEqual(sInfo, "mystery_box", false))
+				OpenMysteryBoxPanel(param1);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -5848,7 +5848,7 @@ void OpenInfoPanel(int client)
 	panel.DrawText("Survive an onslaught of zombies ranging from normal common zombies to special infected zombies.");
 	panel.DrawText("Purchase weapons, perks and rent buildings to help you survive for as long as possible.");
 	panel.DrawText("Powerups drop on the map as well allowing for temporary upgrades.");
-	panel.DrawText("Beat your own times, kill the most zombies, open the secret chest for more upgrades and survive!");
+	panel.DrawText("Beat your own times, kill the most zombies, open the mystery box for more upgrades and survive!");
 
 	panel.DrawItem("Back");
 	panel.DrawItem("Exit");
@@ -5962,20 +5962,20 @@ public int MenuHandler_Powerups(Menu menu, MenuAction action, int param1, int pa
 	}
 }
 
-void OpenSecretBoxPanel(int client)
+void OpenMysteryBoxPanel(int client)
 {
 	Panel panel = new Panel();
-	panel.SetTitle("Secret Box");
+	panel.SetTitle("Mystery Box");
 
-	panel.DrawText("Open the secret box to gain a random weapon you can pick up by interacting with it again.");
+	panel.DrawText("Open the mystery box to gain a random weapon you can pick up by interacting with it again.");
 	panel.DrawItem("Back");
 	panel.DrawItem("Exit");
 
-	panel.Send(client, MenuHandler_SecretBox, MENU_TIME_FOREVER);
+	panel.Send(client, MenuHandler_mysterybox, MENU_TIME_FOREVER);
 	delete panel;
 }
 
-public int MenuHandler_SecretBox(Menu menu, MenuAction action, int param1, int param2)
+public int MenuHandler_mysterybox(Menu menu, MenuAction action, int param1, int param2)
 {
 	switch (action)
 	{
@@ -6801,7 +6801,7 @@ void ShowGlobalStatistics(int client)
 		return;
 	
 	char sQuery[512];
-	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(mysteryboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s';", sSteamID);
 	g_Database.Query(OnParseGlobalStatistics, sQuery, GetClientUserId(client));
 }
 
@@ -6815,7 +6815,7 @@ void ShowServerStatistics(int client)
 	GetServerIP(sServerIP, sizeof(sServerIP), true);
 	
 	char sQuery[512];
-	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(secretboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s' ANd server = '%s';", sSteamID, sServerIP);
+	g_Database.Format(sQuery, sizeof(sQuery), "SELECT SUM(kills), SUM(deaths), SUM(revives), SUM(machines_bought), SUM(weapons_bought), SUM(mysteryboxes_opened), SUM(planks_rebuilt), SUM(buildings_rented), SUM(points_gained), SUM(points_spent), SUM(damage), SUM(waves_won), SUM(specials_killed), SUM(revived), SUM(powerups_pickedup), SUM(total_teammates), SUM(doors_opened) FROM `undead_statistics` WHERE steamid = '%s' ANd server = '%s';", sSteamID, sServerIP);
 	g_Database.Query(OnParseServerStatistics, sQuery, GetClientUserId(client));
 }
 
