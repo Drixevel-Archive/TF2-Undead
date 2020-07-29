@@ -1018,6 +1018,7 @@ enum struct Zombies
 }
 
 Zombies g_Zombies[MAX_NPCS];
+Handle g_SlowdownTimer[MAX_ENTITY_LIMIT + 1];
 
 //Waves Timer
 int g_WaveTime;
@@ -1141,6 +1142,7 @@ enum struct ZombieTypes
 	char death_sound[PLATFORM_MAX_PATH];
 	char particle[64];
 	int unlock_wave;
+	bool hidden;
 }
 
 ZombieTypes g_ZombieTypes[MAX_ZOMBIETYPES];
@@ -2502,6 +2504,8 @@ public void OnEntityDestroyed(int entity)
 		g_PackaPunchUpgrades.SetValue(sEntity, 0);
 
 		g_InteractableType[entity] = -1;
+
+		StopTimer(g_SlowdownTimer[entity]);
 	}
 }
 
@@ -2649,6 +2653,9 @@ void OpenZombiesMenu(int client)
 	char sID[16];
 	for (int i = 0; i < g_TotalZombieTypes; i++)
 	{
+		if (!IsDrixevel(client) && g_ZombieTypes[i].hidden)
+			continue;
+		
 		IntToString(i, sID, sizeof(sID));
 		menu.AddItem(sID, g_ZombieTypes[i].name);
 	}
@@ -3149,6 +3156,8 @@ public void OnZombieThink(int entity)
 			g_Player[target].SetOnFire();
 		else if (type == GetZombieTypeByName("Spikey Bois"))
 			g_Player[target].Bleed();
+		else if (type == GetZombieTypeByName("Zombified Saxton Hale"))
+			PushPlayerFromPoint(target, vecNPCPos, 3000.0);
 
 		g_Player[target].RegenTimer();
 	}
@@ -3337,7 +3346,28 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 		
 		g_Player[attacker].AddPoints(doublepoints ? 20 : 10);
 		g_Player[attacker].AddStat(STAT_DAMAGE, RoundFloat(damage));
+
+		if (g_Zombies[npc.Index].type == GetZombieTypeByName("Zombified Saxton Hale"))
+		{
+			npc.flRunSpeed = 200.0;
+
+			StopTimer(g_SlowdownTimer[victim]);
+			g_SlowdownTimer[victim] = CreateTimer(1.0, Timer_Slowdown, victim, TIMER_FLAG_NO_MAPCHANGE);
+		}
 	}
+}
+
+public Action Timer_Slowdown(Handle timer, any data)
+{
+	int victim = data;
+
+	CBaseNPC npc = TheNPCs.FindNPCByEntIndex(victim);
+
+	if (npc == INVALID_NPC)
+		return;
+	
+	npc.flRunSpeed = g_Zombies[npc.Index].speed;
+	g_SlowdownTimer[victim] = null;
 }
 
 public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
@@ -3775,6 +3805,12 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 			g_Player[victim].SetOnFire();
 		else if (type == GetZombieTypeByName("Spikey Bois"))
 			g_Player[victim].Bleed();
+		else if (type == GetZombieTypeByName("Zombified Saxton Hale"))
+		{
+			float origin[3];
+			GetClientEyePosition(attacker, origin);
+			PushPlayerFromPoint(victim, origin, 3000.0);
+		}
 		
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", victim);
 		g_Player[victim].RegenTimer();
@@ -3963,7 +3999,7 @@ public void OnGameFrame()
 			OnDoorTick(entity);
 	
 	entity = -1;
-	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
+	while ((entity = FindEntityByClassname(entity, "prop_door_rotating")) != -1)
 		if (g_InteractableType[entity] == INTERACTABLE_TYPE_DOORS)
 			OnDoorTick(entity);
 	
@@ -5378,7 +5414,7 @@ void SetupDoors()
 			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 	
 	entity = -1;
-	while ((entity = FindEntityByClassname(entity, "prop_door*")) != -1)
+	while ((entity = FindEntityByClassname(entity, "prop_door_rotating")) != -1)
 		if (HasName(entity, "unlock_door_"))
 			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 }
@@ -5904,6 +5940,9 @@ void OpenTypesPanel(int client)
 	char sDisplay[128];
 	for (int i = 0; i < g_TotalZombieTypes; i++)
 	{
+		if (g_ZombieTypes[i].hidden)
+			continue;
+		
 		FormatEx(sDisplay, sizeof(sDisplay), "%s\n - %s", g_ZombieTypes[i].name, g_ZombieTypes[i].description);
 		panel.DrawText(sDisplay);
 	}
@@ -6071,6 +6110,8 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 			if (g_Zombies[npc.Index].type != GetZombieTypeByName(ZOMBIE_DEFAULT))
 				g_Player[attacker].AddStat(STAT_SPECIALS, 1);
 		}
+
+		StopTimer(g_SlowdownTimer[entity]);
 	}
 }
 
@@ -6373,6 +6414,7 @@ void ParseSpecials()
 			kv.GetString("death_sound", g_ZombieTypes[g_TotalZombieTypes].death_sound, PLATFORM_MAX_PATH);
 			kv.GetString("particle", g_ZombieTypes[g_TotalZombieTypes].particle, 64);
 			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave");
+			g_ZombieTypes[g_TotalZombieTypes].hidden = view_as<bool>(kv.GetNum("hidden"));
 			g_TotalZombieTypes++;
 		}
 		while (kv.GotoNextKey());
@@ -7067,6 +7109,9 @@ void OpenWaveInfoPanel(int client)
 	char text[64];
 	for (int i = 0; i < g_TotalZombieTypes; i++)
 	{
+		if (g_ZombieTypes[i].hidden)
+			continue;
+		
 		FormatEx(text, sizeof(text), "%s: %s (%i)", g_ZombieTypes[i].name, (g_ZombieTypes[i].unlock_wave == -1 || g_ZombieTypes[i].unlock_wave <= g_Match.round) ? "Unlocked" : "Locked", g_ZombieTypes[i].unlock_wave);
 		panel.DrawText(text);
 	}
