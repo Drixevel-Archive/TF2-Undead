@@ -1059,7 +1059,7 @@ enum struct Machines
 	void StartSound()
 	{
 		StopTimer(this.soundtimer);
-		this.soundtimer = CreateTimer(1.0, Timer_PlaySound, this.entity, TIMER_REPEAT);
+		this.soundtimer = CreateTimer(1.0, Timer_PlaySound, EntIndexToEntRef(this.entity), TIMER_REPEAT);
 	}
 
 	void StopSound()
@@ -1072,8 +1072,9 @@ Machines g_Machines[MAX_ENTITY_LIMIT + 1];
 
 public Action Timer_PlaySound(Handle timer, any data)
 {
-	int entity = data;
-	EmitSoundToAll(g_Machines[entity].index == GetMachine("packapunch") ? "undead/machines/packapunchhum.wav" : "undead/machines/perkmachinehum.wav", entity);
+	int entity = -1;
+	if ((entity = EntRefToEntIndex(data)) != -1)
+		EmitSoundToAll(g_Machines[entity].index == GetMachine("packapunch") ? "undead/machines/packapunchhum.wav" : "undead/machines/perkmachinehum.wav", entity);
 }
 
 //CustomWeaponsData
@@ -2495,6 +2496,8 @@ public void OnEntityDestroyed(int entity)
 		char sEntity[64];
 		IntToString(entity, sEntity, sizeof(sEntity));
 		g_PackaPunchUpgrades.SetValue(sEntity, 0);
+
+		g_InteractableType[entity] = -1;
 	}
 }
 
@@ -3967,10 +3970,11 @@ public void OnGameFrame()
 
 public Action TF2_OnCallMedic(int client)
 {
-	if (g_Match.pausetimer || GetClientTeam(client) == TEAM_ZOMBIES)
+	int time = GetTime();
+
+	if (g_Match.pausetimer || GetClientTeam(client) == TEAM_ZOMBIES || (g_Player[client].interact != -1 && g_Player[client].interact > time))
 		return Plugin_Stop;
 	
-	g_Player[client].interact = GetTime() + 2;
 	int near = g_Player[client].nearinteractable;
 
 	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MACHINE)
@@ -4030,6 +4034,8 @@ public Action TF2_OnCallMedic(int client)
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + (StrEqual(g_MachinesData[index].name, "packapunch", false) ? 6 : 2);
 		}
 	}
 
@@ -4073,6 +4079,8 @@ public Action TF2_OnCallMedic(int client)
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + 2;
 		}
 	}
 
@@ -4096,6 +4104,8 @@ public Action TF2_OnCallMedic(int client)
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + 12;
 		}
 	}
 
@@ -4118,6 +4128,8 @@ public Action TF2_OnCallMedic(int client)
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + 2;
 		}
 	}
 	
@@ -4176,6 +4188,8 @@ public Action TF2_OnCallMedic(int client)
 			
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + 2;
 		}
 	}
 
@@ -4209,6 +4223,8 @@ public Action TF2_OnCallMedic(int client)
 			
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
+
+			g_Player[client].interact = time + 2;
 		}
 	}
 
@@ -5295,6 +5311,7 @@ void OnBuildingTick(int entity)
 	
 	char sCost[64];
 	GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
+	int cost = StringToInt(sCost);
 	
 	char sRecharge[64];
 	GetCustomKeyValue(entity, "udm_recharge", sRecharge, sizeof(sRecharge));
@@ -5323,7 +5340,7 @@ void OnBuildingTick(int entity)
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to enable this %s for %i points!", sBuilding, StringToInt(sCost));
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to enable this %s for %i points!", sBuilding, cost);
 			}
 			else
 			{
