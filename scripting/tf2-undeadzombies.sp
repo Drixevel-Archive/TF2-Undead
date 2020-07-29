@@ -38,7 +38,7 @@ Hudsync bugs to look into.
 #define LOBBY_TIME 60
 #define MAX_POINTS 100000
 
-#define PLANK_HEALTH 150
+#define PLANK_HEALTH 400
 #define PLANK_COOLDOWN 30.0
 
 #define POWERUP_CHANCE 25.0
