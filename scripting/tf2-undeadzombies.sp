@@ -3017,6 +3017,14 @@ public Action Timer_ZombieTicks(Handle timer)
 		if (npc == INVALID_NPC)
 			continue;
 		
+		float origin[3];
+		CBaseAnimating(entity).WorldSpaceCenter(origin);
+		
+		CNavArea leadArea = TheNavMesh.GetNearestNavArea(origin, true);
+		
+		if (leadArea == NULL_AREA)
+			PrintToServer("INVALID NAVMESH NEAR %i", entity);
+		
 		if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
 			OnEngiZombieTick(entity);
 	}
@@ -3040,7 +3048,7 @@ void OnEngiZombieTick(int entity)
 		GetEntityOrigin(entity, origin);
 	else
 		GetClientAbsOrigin(entity, origin);
-
+	
 	float targetorigin[3]; CBaseNPC npc;
 	for (int i = 0; i < MAX_NPCS; i++)
 	{
@@ -3315,10 +3323,10 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 				points = RoundFloat(float(points) * 1.5);
 			
 			g_Player[attacker].AddPoints(points);
+			g_Player[attacker].zombiekills++;
 		}
 
 		OnZombieDeath(victim, true, true, attacker);
-		g_Player[attacker].zombiekills++;
 	}
 	else if (IsPlayerIndex(attacker))
 	{
@@ -4776,8 +4784,6 @@ bool OnPowerupPickup(int client, int entity)
 	StopSound(entity, SNDCHAN_USER_BASE + 14, "undead/powerups/powerup_loop.wav");
 
 	int index = g_PowerupIndex[entity];
-	g_PowerupIndex[entity] = -1;
-	AcceptEntityInput(entity, "Kill");
 
 	switch (index)
 	{
@@ -4828,6 +4834,7 @@ bool OnPowerupPickup(int client, int entity)
 	if (IsPlayerIndex(client))
 		g_Player[client].AddStat(STAT_POWERUP, 1);
 	
+	AcceptEntityInput(entity, "Kill");
 	return true;
 }
 
