@@ -1820,6 +1820,7 @@ void InitLobby()
 	TF2_RespawnAll();
 	FindConVar("mp_disable_respawn_times").IntValue = 0;
 	
+	g_Match.difficulty = GetDifficultyByName("Medium");
 	g_Match.roundtime = LOBBY_TIME;
 	g_Match.round = 1;
 	g_Match.roundphase = PHASE_STARTING;
@@ -3064,7 +3065,7 @@ public void OnZombieThink(int entity)
 
 	int target = g_Zombies[npc.Index].target;
 
-	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) == npc.iTeamNum)
+	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) < 2 || GetClientTeam(target) == npc.iTeamNum)
 		g_Zombies[npc.Index].target = GetZombieTarget();
 	
 	target = g_Zombies[npc.Index].target;
