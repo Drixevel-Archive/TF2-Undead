@@ -391,6 +391,7 @@ enum struct Player
 
 	Handle regentimer;
 	Handle punchanim;
+	Handle revivetimer;
 
 	ArrayList perks;
 	StringMap stats;
@@ -438,6 +439,8 @@ enum struct Player
 
 		StopTimer(this.regentimer);
 		StopTimer(this.punchanim);
+		StopTimer(this.revivetimer);
+
 		StopTimer(this.firetimer);
 		StopTimer(this.bleedtimer);
 
@@ -531,6 +534,7 @@ enum struct Player
 
 		this.regentimer = null;
 		this.punchanim = null;
+		this.revivetimer = null;
 
 		this.perks = null;
 		this.stats = null;
@@ -2288,6 +2292,13 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 					g_Player[client].melee = g_WeaponIndex[weapon];
 				
 				TF2_CreateAnnotationToAll(vecOrigin, "Stand Here...", 10.0, "vo/null.wav");
+
+				StopTimer(g_Player[client].revivetimer);
+
+				DataPack pack;
+				g_Player[client].revivetimer = CreateDataTimer(60.0, Timer_DeleteMarker, pack, TIMER_FLAG_NO_MAPCHANGE);
+				pack.WriteCell(GetClientUserId(client));
+				pack.WriteCell(EntIndexToEntRef(entity));
 			}
 		}
 
@@ -2322,6 +2333,19 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 
 		CreateTimer(0.5, Timer_ParseRoundEnd, _, TIMER_FLAG_NO_MAPCHANGE);
 	}
+}
+
+public Action Timer_DeleteMarker(Handle timer, DataPack pack)
+{
+	pack.Reset();
+	int client = GetClientOfUserId(pack.ReadCell());
+	int entity = EntRefToEntIndex(pack.ReadCell());
+
+	if (IsValidEntity(entity))
+		AcceptEntityInput(entity, "Kill");
+	
+	if (client > 0)
+		g_Player[client].revivetimer = null;
 }
 
 void TF2_CreateAnnotationToAll(float origin[3], const char[] text, float lifetime = 10.0, const char[] sound = "vo/null.wav")
@@ -3433,6 +3457,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 		return Plugin_Continue;
 	
 	g_Player[client].Clean(false);
+	StopTimer(g_Player[client].revivetimer);
 
 	TF2Attrib_RemoveMoveSpeedBonus(client);
 	TF2Attrib_RemoveMoveSpeedPenalty(client);
@@ -3799,6 +3824,7 @@ public void OnClientDisconnect(int client)
 public void OnClientDisconnect_Post(int client)
 {
 	g_Player[client].Clear();
+	StopTimer(g_Player[client].revivetimer);
 }
 
 public Action OnClientCommand(int client, int args)
@@ -3966,7 +3992,7 @@ public Action TF2_OnCallMedic(int client)
 			EmitGameSoundToAll("MVM.MoneyPickup", client);
 			g_Match.coins_machine = -1;
 		}
-		else if (value >= 4)
+		else if (StrEqual(g_MachinesData[index].name, "packapunch", false) && value >= 4)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "This weapon is max level for packapunch.");
