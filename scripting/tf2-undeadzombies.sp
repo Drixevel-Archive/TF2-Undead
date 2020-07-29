@@ -4416,6 +4416,7 @@ void ParseWeapons()
 		do
 		{
 			kv.GetSectionName(g_CustomWeapons[g_TotalCustomWeapons].name, 64);
+			g_CustomWeapons[g_TotalCustomWeapons].name[0] = CharToUpper(g_CustomWeapons[g_TotalCustomWeapons].name[0]);
 			kv.GetVector("offset_angles", g_CustomWeapons[g_TotalCustomWeapons].offset_angles);
 			g_CustomWeapons[g_TotalCustomWeapons].secret_box = view_as<bool>(kv.GetNum("secret_box"));
 			g_TotalCustomWeapons++;
@@ -4958,6 +4959,7 @@ void StartSecretBoxEvent(int client, int secretbox)
 
 	char sModel[PLATFORM_MAX_PATH];
 	TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
+	//PrintToDrixevel("%s - %s", g_CustomWeapons[index].name, sModel);
 
 	DispatchKeyValue(display, "model", sModel);
 
@@ -5020,6 +5022,7 @@ public Action Timer_SecretBox(Handle timer, DataPack pack)
 		
 		char sModel[PLATFORM_MAX_PATH];
 		TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
+		//PrintToDrixevel("%s - %s", g_CustomWeapons[index].name, sModel);
 
 		SetEntityModel(display, sModel);
 	}
