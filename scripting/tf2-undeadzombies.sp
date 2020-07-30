@@ -35,7 +35,7 @@ Hudsync bugs to look into.
 #define MAX_POWERUPS 32
 #define MAX_ZOMBIETYPES 32
 
-#define LOBBY_TIME 60
+#define LOBBY_TIME 2
 #define MAX_POINTS 100000
 
 #define PLANK_HEALTH 400
@@ -690,7 +690,7 @@ enum struct Player
 		return count;
 	}
 
-	void ApplyPerks(bool noanims = false)
+	void ApplyPerks()
 	{
 		if (!IsClientInGame(this.client) || !IsPlayerAlive(this.client))
 			return;
@@ -699,11 +699,11 @@ enum struct Player
 		for (int i = 0; i < this.perks.Length; i++)
 		{
 			this.perks.GetString(i, sPerk, sizeof(sPerk));
-			this.ApplyPerk(sPerk, noanims);
+			this.ApplyPerk(sPerk);
 		}
 	}
 
-	void ApplyPerk(const char[] name, bool noanims = false)
+	void ApplyPerk(const char[] name)
 	{
 		if (!IsClientInGame(this.client) || !IsPlayerAlive(this.client))
 			return;
@@ -751,9 +751,6 @@ enum struct Player
 
 					TF2Items_RefillMag(weapon);
 					TF2Items_RefillAmmo(this.client, weapon);
-
-					if (!noanims)
-						ActivateAnimation(this.client, "packapunch", weapon);
 				}
 			}
 		}
@@ -1049,6 +1046,7 @@ enum struct Machines
 	int unlock;
 	int glow;
 	Handle soundtimer;
+	bool inuse;
 	
 	void Reset()
 	{
@@ -1059,6 +1057,8 @@ enum struct Machines
 		this.glow = -1;
 
 		StopTimer(this.soundtimer);
+
+		this.inuse = false;
 	}
 
 	void StartSound()
@@ -1175,7 +1175,6 @@ public void OnPluginStart()
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
-	RegAdminCmd("sm_testanim", Command_TestAnim, ADMFLAG_ROOT);
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
@@ -3600,7 +3599,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 			g_Player[client].secondary = -1;
 			g_Player[client].melee = -1;
 
-			//g_Player[client].ApplyPerks(true);
+			//g_Player[client].ApplyPerks();
 		}
 
 		//g_Player[client].CreateGlow();
@@ -4019,8 +4018,15 @@ public void OnGameFrame()
 public Action TF2_OnCallMedic(int client)
 {
 	int time = GetTime();
-	if (g_Match.pausetimer || GetClientTeam(client) == TEAM_ZOMBIES || (g_Player[client].interactabletimer != -1 && g_Player[client].interactabletimer > time))
+
+	if (g_Match.pausetimer || GetClientTeam(client) == TEAM_ZOMBIES)
 		return Plugin_Stop;
+	
+	if (g_Player[client].interactabletimer != -1 && g_Player[client].interactabletimer > time)
+	{
+		PrintErrorMessage(client, "Please wait %i seconds before interacting again.", g_Player[client].interactabletimer - time);
+		return Plugin_Stop;
+	}
 	
 	g_Player[client].interact = time + 2;
 	int near = g_Player[client].nearinteractable;
@@ -4051,6 +4057,11 @@ public Action TF2_OnCallMedic(int client)
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "This weapon is max level for packapunch.");
 		}
+		else if (StrEqual(g_MachinesData[index].name, "packapunch", false) && g_Machines[entity].inuse)
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			PrintErrorMessage(client, "Machine is currently in use.");
+		}
 		else if (!g_Player[client].RemovePoints(g_Machines[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
@@ -4074,8 +4085,13 @@ public Action TF2_OnCallMedic(int client)
 			FormatEx(sSound, sizeof(sSound), "undead/machines/%s.wav", g_MachinesData[index].name);
 			EmitSoundToAll(sSound, entity, SNDCHAN_AUTO, SNDLEVEL_TRAIN, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, entity, NULL_VECTOR, NULL_VECTOR, true, 0.0);
 
-			g_Player[client].AddPerk(g_MachinesData[index].name);
-			CPrintToChat(client, "You have purchased the Machine perk: {haunted}%s", g_MachinesData[index].display);
+			if (StrEqual(g_MachinesData[index].name, "packapunch", false))
+				StartPackapunchEvent(client, entity, active);
+			else
+			{
+				g_Player[client].AddPerk(g_MachinesData[index].name);
+				CPrintToChat(client, "You have purchased the Machine perk: {haunted}%s", g_MachinesData[index].display);
+			}
 
 			if (IsPlayerIndex(client))
 				g_Player[client].AddStat(STAT_MACHINES, 1);
@@ -6631,101 +6647,6 @@ float CalculateDamage()
 	return damage;
 }
 
-public Action Command_TestAnim(int client, int args)
-{
-	ActivateAnimation(client, "packapunch", GetActiveWeapon(client));
-	return Plugin_Handled;
-}
-
-void ActivateAnimation(int client, const char[] animation, int weapon = -1)
-{
-	if (StrEqual(animation, "packapunch", false) && IsValidEntity(weapon))
-	{
-		int index = g_WeaponIndex[weapon];
-
-		if (index == -1)
-			return;
-
-		int punch = -1; int entity = -1;
-		while ((entity = FindEntityByClassname(entity, "*")) != -1)
-			if (entity > 0 && g_Machines[entity].index == GetMachine("packapunch"))
-				punch = entity;
-		
-		int propweapon = -1;
-		if (IsValidEntity(punch))
-		{ 
-			float origin[3];
-			GetEntityOrigin(punch, origin);
-			
-			char sModel[PLATFORM_MAX_PATH];
-			TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
-			
-			propweapon = CreateEntityByName("prop_dynamic");
-			origin[0] += 10.0; origin[1] += -20.0; origin[2] += 85.0;
-			DispatchKeyValueVector(propweapon, "origin", origin);
-			DispatchKeyValueVector(propweapon, "angles", g_CustomWeapons[index].offset_angles);
-			DispatchKeyValue(propweapon, "model", sModel);
-			DispatchSpawn(propweapon);
-
-			TF2_CreateGlow("propweaponcolor", propweapon, view_as<int>({255, 200, 200, 150}));
-
-			AcceptEntityInput(g_Machines[punch].glow, "Disable");
-		}
-
-		EquipWeaponSlot(client, 2);
-		TF2_AddCondition(client, TFCond_FreezeInput);
-
-		SetVariantInt(1);
-		AcceptEntityInput(client, "SetForcedTauntCam");
-
-		SetClientViewEntity(client, propweapon);
-		SetEntityMoveType(client, MOVETYPE_OBSERVER);
-
-		EmitSoundToAll("misc/doomsday_cap_open.wav", client);
-
-		StopTimer(g_Player[client].punchanim);
-		DataPack pack;
-		g_Player[client].punchanim = CreateDataTimer(5.0, Timer_InitPackaPunch, pack);
-		pack.WriteCell(client);
-		pack.WriteCell(weapon);
-		pack.WriteCell(punch);
-		pack.WriteCell(propweapon);
-	}
-}
-
-public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
-{
-	pack.Reset();
-
-	int client = pack.ReadCell();
-	int weapon = pack.ReadCell();
-	int punch = pack.ReadCell();
-	int propweapon = pack.ReadCell();
-
-	g_Player[client].punchanim = null;
-	
-	if (IsClientInGame(client) && IsPlayerAlive(client))
-	{
-		EquipWeapon(client, weapon);
-		TF2_RemoveCondition(client, TFCond_FreezeInput);
-		InspectWeapon(client);
-
-		SetVariantInt(0);
-		AcceptEntityInput(client, "SetForcedTauntCam");
-	}
-
-	if (IsValidEntity(propweapon))
-		AcceptEntityInput(propweapon, "Kill");
-	
-	AcceptEntityInput(g_Machines[punch].glow, "Enable");
-
-	SetClientViewEntity(client, client);
-	SetEntityMoveType(client, MOVETYPE_WALK);
-	SetEntProp(client, Prop_Send, "m_iObserverMode", 0);
-	
-	return Plugin_Stop;
-}
-
 float GetZombieSoundDuration(int entity)
 {
 	float time = GetGameTime();
@@ -7194,4 +7115,137 @@ public Action Command_ReloadConfigs(int client, int ars)
 	ParseSpecials();
 	CPrintToChat(client, "Undead configurations have been reloaded.");
 	return Plugin_Handled;
+}
+
+int punch_weapon;
+
+void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
+{
+	if (!IsValidEntity(weapon) || !IsValidEntity(punch))
+		return;
+	
+	int index = g_WeaponIndex[weapon];
+
+	if (index == -1 || g_Machines[punch].inuse)
+		return;
+	
+	g_Machines[punch].inuse = true;
+
+	float origin[3];
+	GetEntityOrigin(punch, origin);
+	
+	char sModel[PLATFORM_MAX_PATH];
+	TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
+	
+	int propweapon = CreateEntityByName("prop_dynamic");
+	origin[0] += 10.0; origin[1] += -20.0; origin[2] += 85.0;
+	DispatchKeyValueVector(propweapon, "origin", origin);
+	DispatchKeyValueVector(propweapon, "angles", g_CustomWeapons[index].offset_angles);
+	DispatchKeyValue(propweapon, "model", sModel);
+	DispatchSpawn(propweapon);
+
+	TF2_CreateGlow("propweaponcolor", propweapon, view_as<int>({255, 200, 200, 150}));
+
+	AcceptEntityInput(g_Machines[punch].glow, "Disable");
+
+	EquipWeaponSlot(client, 2);
+
+	punch_weapon = weapon;
+	SDKHook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
+
+	EmitSoundToAll("misc/doomsday_cap_open.wav", client);
+
+	StopTimer(g_Player[client].punchanim);
+	DataPack pack;
+	g_Player[client].punchanim = CreateDataTimer(0.1, Timer_InitPackaPunch, pack, TIMER_REPEAT);
+	pack.WriteCell(client);
+	pack.WriteCell(weapon);
+	pack.WriteCell(punch);
+	pack.WriteCell(propweapon);
+	pack.WriteCell(0.0);
+	pack.WriteCell(0);
+}
+
+public Action OnWeaponSwitch(int client, int weapon)
+{
+	if (punch_weapon == weapon)
+		return Plugin_Stop;
+	
+	return Plugin_Continue;
+}
+
+public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
+{
+	pack.Reset();
+
+	int client = pack.ReadCell();
+	int weapon = pack.ReadCell();
+	int punch = pack.ReadCell();
+	int propweapon = pack.ReadCell();
+	float ticks = pack.ReadCell();
+	int phase = pack.ReadCell();
+
+	ticks += 0.1;
+
+	if (ticks >= 5.0 && phase == 0)
+	{
+		phase = 1;
+		CPrintToChat(client, "Weapon is now packapunched.");
+	}
+	else if (ticks >= 15.0 && phase == 1)
+	{
+		phase = 2;
+		CPrintToChat(client, "You have run out of time and your weapon is now gone.");
+	}
+	
+	switch (phase)
+	{
+		case 1:
+		{
+			float playerorigin[3];
+			GetClientAbsOrigin(client, playerorigin);
+
+			float boxorigin[3];
+			GetEntPropVector(punch, Prop_Send, "m_vecOrigin", boxorigin);
+
+			if (g_Player[client].interact != -1 && g_Player[client].interact > GetTime() && GetVectorDistance(playerorigin, boxorigin) <= 120.0)
+			{
+				CompletePackapunch(punch, propweapon);
+
+				SDKUnhook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
+				EquipWeapon(client, weapon);
+				g_Player[client].AddPerk("packapunch");
+
+				g_Player[client].punchanim = null;
+				return Plugin_Stop;
+			}
+		}
+		case 2:
+		{
+			CompletePackapunch(punch, propweapon);
+			
+			TF2_RemoveWeaponSlot(client, GetWeaponSlot(client, weapon));
+			g_Player[client].punchanim = null;
+			return Plugin_Stop;
+		}
+	}
+
+	pack.Reset();
+	pack.WriteCell(client);
+	pack.WriteCell(weapon);
+	pack.WriteCell(punch);
+	pack.WriteCell(propweapon);
+	pack.WriteCell(ticks);
+	pack.WriteCell(phase);
+	
+	return Plugin_Continue;
+}
+
+void CompletePackapunch(int punch, int propweapon)
+{
+	if (IsValidEntity(propweapon))
+		AcceptEntityInput(propweapon, "Kill");
+	
+	AcceptEntityInput(g_Machines[punch].glow, "Enable");
+	g_Machines[punch].inuse = false;
 }
