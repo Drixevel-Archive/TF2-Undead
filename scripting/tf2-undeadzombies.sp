@@ -9,6 +9,8 @@
 #define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
 #define PLUGIN_VERSION "1.0.5"
 
+#define EF_NODRAW 0x020
+
 #define PHASE_HIBERNATION 0
 #define PHASE_STARTING 1
 #define PHASE_WAITING 2
@@ -439,6 +441,10 @@ Match g_Match;
 //CustomWeapons
 enum struct CustomWeapons
 {
+	bool status;
+	int target;
+	bool hide;
+
 	int index;
 	int price;
 	int unlock;
@@ -448,6 +454,10 @@ enum struct CustomWeapons
 	
 	void Reset()
 	{
+		this.status = true;
+		this.target = -1;
+		this.hide = false;
+
 		this.index = -1;
 		this.price = 0;
 		this.unlock = -1;
@@ -1143,6 +1153,10 @@ int g_TotalMachines;
 //Machines
 enum struct Machines
 {
+	bool status;
+	int target;
+	bool hide;
+
 	int entity;
 	int index;
 	int price;
@@ -1153,6 +1167,10 @@ enum struct Machines
 	
 	void Reset()
 	{
+		this.status = true;
+		this.target = -1;
+		this.hide = false;
+
 		this.entity = -1;
 		this.index = -1;
 		this.price = 0;
@@ -1200,6 +1218,9 @@ int g_TotalCustomWeapons;
 enum struct MysteryBox
 {
 	bool status;
+	int target;
+	bool hide;
+
 	int price;
 	bool inuse;
 	int glow;
@@ -1207,7 +1228,10 @@ enum struct MysteryBox
 
 	void Reset()
 	{
-		this.status = false;
+		this.status = true;
+		this.target = -1;
+		this.hide = false;
+
 		this.price = 0;
 		this.inuse = false;
 		this.glow = -1;
@@ -1443,7 +1467,12 @@ public void OnPluginStart()
 	}
 
 	AddNormalSoundHook(OnSoundPlay);
+
 	HookEntityOutput("logic_relay", "OnTrigger", OnRelayTrigger);
+	HookEntityOutput("info_target", "FireUser1", OnInfoTargetFire);
+	HookEntityOutput("info_target", "FireUser2", OnInfoTargetFire);
+	HookEntityOutput("info_target", "FireUser3", OnInfoTargetFire);
+	HookEntityOutput("info_target", "FireUser4", OnInfoTargetFire);
 
 	g_Match.Init();
 	g_Match.hud_timer = new Hud();
@@ -1528,6 +1557,138 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 		g_Match.bomb_heads = true;
 	else if (StrContains(sName, "secret3_lock", false) != -1)
 		g_Match.bomb_heads = false;*/
+}
+#define TARGET_ENABLE 0
+#define TARGET_DISABLE 1
+#define TARGET_KILL 2
+#define TARGET_CREATE 3
+public Action OnInfoTargetFire(const char[] output, int caller, int activator, float delay)
+{
+	if (StrEqual(output, "FireUser1", false))
+	{
+		HandleFireUser(caller, TARGET_ENABLE);
+	}
+	else if (StrEqual(output, "FireUser2", false))
+	{
+		HandleFireUser(caller, TARGET_DISABLE);
+	}
+	else if (StrEqual(output, "FireUser3", false))
+	{
+		HandleFireUser(caller, TARGET_KILL);
+	}
+	else if (StrEqual(output, "FireUser4", false))
+	{
+		HandleFireUser(caller, TARGET_CREATE);
+	}
+}
+
+void HandleFireUser(int caller, int type)
+{
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "*")) != -1)
+	{
+		if (g_SpawnedWeapons[entity].target == caller)
+		{
+			switch (type)
+			{
+				case TARGET_ENABLE:
+				{
+					g_SpawnedWeapons[entity].status = true;
+				}
+				
+				case TARGET_DISABLE:
+				{
+					g_SpawnedWeapons[entity].status = false;
+				}
+				
+				case TARGET_KILL:
+				{
+					g_SpawnedWeapons[entity].hide = true;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects |= EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+				
+				case TARGET_CREATE:
+				{
+					g_SpawnedWeapons[entity].hide = false;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects &= ~EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+			}
+		}
+
+		if (g_Machines[entity].target == caller)
+		{
+			switch (type)
+			{
+				case TARGET_ENABLE:
+				{
+					g_Machines[entity].status = true;
+				}
+				
+				case TARGET_DISABLE:
+				{
+					g_Machines[entity].status = false;
+				}
+				
+				case TARGET_KILL:
+				{
+					g_Machines[entity].hide = true;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects |= EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+				
+				case TARGET_CREATE:
+				{
+					g_Machines[entity].hide = false;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects &= ~EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+			}
+		}
+
+		if (g_MysteryBox[entity].target == caller)
+		{
+			switch (type)
+			{
+				case TARGET_ENABLE:
+				{
+					g_MysteryBox[entity].status = true;
+				}
+				
+				case TARGET_DISABLE:
+				{
+					g_MysteryBox[entity].status = false;
+				}
+				
+				case TARGET_KILL:
+				{
+					g_MysteryBox[entity].hide = true;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects |= EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+				
+				case TARGET_CREATE:
+				{
+					g_MysteryBox[entity].hide = false;
+
+					int EntEffects = GetEntProp(entity, Prop_Send, "m_fEffects");
+					EntEffects &= ~EF_NODRAW;
+					SetEntProp(entity, Prop_Send, "m_fEffects", EntEffects);
+				}
+			}
+		}
+	}
 }
 
 public void Hook_BlockCvarValue(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -4181,6 +4342,16 @@ public Action TF2_OnCallMedic(int client)
 		int entity = near;
 		int index = g_Machines[entity].index;
 
+		if (!g_Machines[entity].hide)
+			return Plugin_Stop;
+
+		if (!g_Machines[entity].status)
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			PrintErrorMessage(client, "This machine is currently disabled.");
+			return Plugin_Stop;
+		}
+
 		bool doublepoints = g_Player[client].doublepoints != -1 && g_Player[client].doublepoints > GetTime();
 
 		int active = GetActiveWeapon(client);
@@ -4253,6 +4424,16 @@ public Action TF2_OnCallMedic(int client)
 		int entity = near;
 		int index = g_SpawnedWeapons[entity].index;
 
+		if (!g_SpawnedWeapons[entity].hide)
+			return Plugin_Stop;
+
+		if (!g_SpawnedWeapons[entity].status)
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			PrintErrorMessage(client, "This weapon is currently disabled.");
+			return Plugin_Stop;
+		}
+
 		char sClasses[2048];
 		TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "classes", sClasses, sizeof(sClasses));
 
@@ -4296,6 +4477,16 @@ public Action TF2_OnCallMedic(int client)
 	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MYSTERYBOX && g_Match.mutation != MUTATION_NOMYSTERYBOXES)
 	{
 		int entity = near;
+
+		if (!g_MysteryBox[entity].hide)
+			return Plugin_Stop;
+
+		if (!g_MysteryBox[entity].status)
+		{
+			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+			PrintErrorMessage(client, "This mystery box is currently disabled.");
+			return Plugin_Stop;
+		}
 
 		if (g_MysteryBox[entity].inuse || !g_Player[client].RemovePoints(g_MysteryBox[entity].price))
 		{
@@ -4510,6 +4701,8 @@ void SpawnMachines()
 
 		int glow = TF2_CreateGlow("machine_color", machine, view_as<int>({200, 200, 255, 150}));
 
+		g_Machines[machine].target = entity;
+
 		g_Machines[machine].entity = machine;
 		g_Machines[machine].index = index;
 		g_Machines[machine].price = StringToInt(sCost);
@@ -4544,6 +4737,9 @@ public void OnMachineDamage(int victim, int attacker, int inflictor, float damag
 
 void OnMachineTick(int entity)
 {
+	if (!g_Machines[entity].status || !g_Machines[entity].hide)
+		return;
+	
 	int unlock = g_Machines[entity].unlock;
 	int index = g_Machines[entity].index;
 
@@ -4700,6 +4896,8 @@ void SpawnWeapons()
 		TF2_CreateGlow("weapon_color", weapon, view_as<int>({255, 200, 200, 150}));
 		//CreatePointGlow(origin, 360.0);
 
+		g_SpawnedWeapons[weapon].target = entity;
+
 		g_SpawnedWeapons[weapon].index = index;
 		g_SpawnedWeapons[weapon].price = StringToInt(sCost);
 		g_SpawnedWeapons[weapon].unlock = unlock;
@@ -4721,6 +4919,9 @@ int GetCustomWeaponIndex(const char[] name)
 
 void OnWeaponTick(int entity)
 {
+	if (!g_SpawnedWeapons[entity].status || !g_SpawnedWeapons[entity].hide)
+		return;
+	
 	int unlock = g_SpawnedWeapons[entity].unlock;
 	int index = g_SpawnedWeapons[entity].index;
 
@@ -5109,6 +5310,8 @@ void SpawnMysteryBoxes()
 		DispatchKeyValueVector(mysterybox, "angles", angles);
 		DispatchSpawn(mysterybox);
 		
+		g_MysteryBox[mysterybox].target = entity;
+
 		g_MysteryBox[mysterybox].status = true;
 		g_MysteryBox[mysterybox].price = 1000;
 		g_MysteryBox[mysterybox].inuse = false;
@@ -5120,6 +5323,9 @@ void SpawnMysteryBoxes()
 
 void OnMysteryBoxTick(int entity)
 {
+	if (!g_MysteryBox[entity].status || !g_MysteryBox[entity].hide)
+		return;
+	
 	int unlock = g_MysteryBox[entity].unlock;
 
 	for (int i = 1; i <= MaxClients; i++)
