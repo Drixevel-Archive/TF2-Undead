@@ -2642,6 +2642,9 @@ public Action Command_SpawnWave(int client, int args)
 
 void SpawnWave(int amount)
 {
+	if (g_Match.pausezombies)
+		return;
+	
 	int total = amount;
 	int special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
