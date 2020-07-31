@@ -1,7 +1,3 @@
-/*
-Hudsync bugs to look into.
-*/
-
 /*****************************/
 //Pragma
 #pragma semicolon 1
