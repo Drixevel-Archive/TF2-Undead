@@ -7308,17 +7308,23 @@ void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 		return;
 	
 	g_Machines[punch].inuse = true;
-
-	float origin[3];
-	GetEntityOrigin(punch, origin);
 	
 	char sModel[PLATFORM_MAX_PATH];
 	TF2Items_GetItemKeyString(g_CustomWeapons[index].name, "worldmodel", sModel, sizeof(sModel));
+
+	float origin[3]; origin = WorldSpaceCenter(punch);
+	origin[2] += 75.0;
+
+	float angles[3];
+	GetEntityAngles(punch, angles);
+	
+	angles[0] = g_CustomWeapons[index].offset_angles[0];
+	angles[1] += 270.0;
+	angles[2] = g_CustomWeapons[index].offset_angles[2];
 	
 	int propweapon = CreateEntityByName("prop_dynamic");
-	origin[0] += 10.0; origin[1] += -20.0; origin[2] += 85.0;
 	DispatchKeyValueVector(propweapon, "origin", origin);
-	DispatchKeyValueVector(propweapon, "angles", g_CustomWeapons[index].offset_angles);
+	DispatchKeyValueVector(propweapon, "angles", angles);
 	DispatchKeyValue(propweapon, "model", sModel);
 	DispatchSpawn(propweapon);
 
@@ -7342,6 +7348,62 @@ void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 	pack.WriteCell(propweapon);
 	pack.WriteCell(0.0);
 	pack.WriteCell(0);
+}
+
+stock float[] GetAbsOrigin(int client)
+{
+    float v[3];
+    GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", v);
+    return v;
+}
+
+stock float[] EyePosition(int ent)
+{
+    float v[3]; v = GetAbsOrigin(ent);
+    
+    if (HasEntProp(ent, Prop_Send, "m_vDefaultEyeOffset"))
+    {
+        switch(m_iUpgradeLevel)
+        {
+            case 1: v[2] += SENTRYGUN_EYE_OFFSET_LEVEL_1;
+            case 2: v[2] += SENTRYGUN_EYE_OFFSET_LEVEL_2;
+            case 3: v[2] += SENTRYGUN_EYE_OFFSET_LEVEL_3;
+        }
+    }
+    else
+    {
+        float max[3];
+        GetEntPropVector(ent, Prop_Data, "m_vecMaxs", max);
+        v[2] += max[2];
+    }
+
+    return v;
+}
+
+stock float[] WorldSpaceCenter(int ent)
+{
+    float v[3]; v = GetAbsOrigin(ent);
+    
+    float max[3];
+    GetEntPropVector(ent, Prop_Data, "m_vecMaxs", max);
+    v[2] += max[2] / 2;
+    
+    return v;
+}
+
+stock float[] GetAbsAngles(int client)
+{
+    float v[3];
+    GetEntPropVector(client, Prop_Data, "m_angAbsRotation", v);
+    
+    return v;
+}
+
+stock float[] GetEyeAngles(int client)
+{
+    float v[3];
+    GetClientEyeAngles(client, v);
+    return v;
 }
 
 public Action OnWeaponSwitch(int client, int weapon)
