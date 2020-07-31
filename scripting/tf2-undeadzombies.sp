@@ -35,7 +35,7 @@ Hudsync bugs to look into.
 #define MAX_POWERUPS 32
 #define MAX_ZOMBIETYPES 32
 
-#define LOBBY_TIME 2
+#define LOBBY_TIME 30
 #define MAX_POINTS 100000
 
 #define PLANK_HEALTH 400
@@ -3493,6 +3493,9 @@ public Action Command_StartMatch(int client, int args)
 public void TF2_OnPlayerSpawn(int client, int team, int class)
 {
 	CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(client));
+
+	if (g_GlobalTarget == client)
+		TF2_AddCondition(g_GlobalTarget, TFCond_MarkedForDeath, TFCondDuration_Infinite);
 }
 
 public Action Timer_DelaySpawn(Handle timer, any data)
@@ -3863,6 +3866,9 @@ public void OnCheckDownloadsFilter(QueryCookie cookie, int client, ConVarQueryRe
 
 public void OnClientDisconnect(int client)
 {
+	if (g_GlobalTarget == client)
+		g_GlobalTarget = -1;
+	
 	g_Player[client].Clean();
 	CreateTimer(0.5, Timer_ParseRoundEnd, _, TIMER_FLAG_NO_MAPCHANGE);
 
@@ -6912,7 +6918,10 @@ public int MenuAction_Statistics(Menu menu, MenuAction action, int param1, int p
 
 public Action Command_Target(int client, int args)
 {
-	if (args == 0)
+	char sTarget[MAX_TARGET_LENGTH];
+	GetCmdArgString(sTarget, sizeof(sTarget));
+
+	if (args == 0 || StrEqual(sTarget, "-1, false"))
 	{
 		if (g_GlobalTarget != -1)
 			TF2_RemoveCondition(g_GlobalTarget, TFCond_MarkedForDeath);
@@ -6921,9 +6930,6 @@ public Action Command_Target(int client, int args)
 		CPrintToChat(client, "Target has been disabled.");
 		return Plugin_Handled;
 	}
-
-	char sTarget[MAX_TARGET_LENGTH];
-	GetCmdArgString(sTarget, sizeof(sTarget));
 
 	int target = FindTarget(client, sTarget, false, false);
 
