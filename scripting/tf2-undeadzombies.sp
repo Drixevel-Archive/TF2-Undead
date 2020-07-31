@@ -84,6 +84,22 @@ Hudsync bugs to look into.
 #define STAT_TEAMMATES "total_teammates"
 #define STAT_DOORS "doors_opened"
 
+#define MUTATION_NONE 0
+#define MUTATION_NOWEAPONS 1
+#define MUTATION_NOMACHINES 2
+#define MUTATION_NOMYSTERYBOXES 3
+#define MUTATION_NOPOWERUPS 4
+#define MUTATION_ALLDOORSOPEN 5
+#define MUTATION_ALLDOORSCLOSED 6
+#define MUTATION_SPECIALSONLY 7
+#define MUTATION_ONESPECIALONLY 8
+#define MUTATION_LIGHTNINGROUND 9
+#define MUTATION_DAMAGEMULTIPLIER 10
+#define MUTATION_MOREHEALTH 11
+#define MUTATION_MINIZOMBIES 12
+#define MUTATION_BOSSFIGHT 13 //need to implement
+#define MUTATION_TOTAL 13
+
 /*****************************/
 //Includes
 #include <sourcemod>
@@ -257,6 +273,9 @@ enum struct Match
 	int powerups_cooldown;
 	int coins_machine;
 
+	int mutation;
+	int mutation_special;
+
 	void Init()
 	{
 		this.difficulty = GetDifficultyByName("Medium");
@@ -275,6 +294,9 @@ enum struct Match
 
 		this.powerups_cooldown = -1;
 		this.coins_machine = -1;
+
+		this.mutation = MUTATION_NONE;
+		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 	}
 
 	void Reset()
@@ -295,6 +317,9 @@ enum struct Match
 
 		this.powerups_cooldown = -1;
 		this.coins_machine = -1;
+
+		this.mutation = MUTATION_NONE;
+		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
 
 		int entity = -1;
 		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
@@ -328,6 +353,57 @@ enum struct Match
 		for (int i = 1; i <= MaxClients; i++)
 			if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_ZOMBIES)
 				TF2_RemoveCondition(i, TFCond_FreezeInput);
+	}
+
+	void SetMutation(int mutation)
+	{
+		this.mutation = mutation;
+
+		if (this.mutation != MUTATION_NONE)
+		{
+			EmitSoundToAll("ui/system_message_alert.wav");
+			CPrintToChatAll("Mutation Round!");
+
+			switch (mutation)
+			{
+				case MUTATION_ALLDOORSOPEN:
+				{
+					int entity = -1;
+					while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
+					{
+						AcceptEntityInput(entity, "Unlock");
+						AcceptEntityInput(entity, "Open");
+					}
+					
+					entity = -1;
+					while ((entity = FindEntityByClassname(entity, "prop_door_rotating")) != -1)
+					{
+						AcceptEntityInput(entity, "Unlock");
+						AcceptEntityInput(entity, "Open");
+					}
+				}
+				case MUTATION_ALLDOORSCLOSED:
+				{
+					int entity = -1;
+					while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
+					{
+						AcceptEntityInput(entity, "Close");
+						AcceptEntityInput(entity, "Lock");
+					}
+					
+					entity = -1;
+					while ((entity = FindEntityByClassname(entity, "prop_door_rotating")) != -1)
+					{
+						AcceptEntityInput(entity, "Close");
+						AcceptEntityInput(entity, "Lock");
+					}
+				}
+				case MUTATION_ONESPECIALONLY:
+				{
+					this.mutation_special = GetRandomZombieSpecial();
+				}
+			}
+		}
 	}
 }
 
@@ -1241,6 +1317,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_setzombietype", Command_SetZombieType, ADMFLAG_ROOT);
 
 	RegAdminCmd("sm_reloadconfigs", Command_ReloadConfigs, ADMFLAG_ROOT);
+	RegAdminCmd("sm_breakallplanks", Command_BreakAllPlanks, ADMFLAG_ROOT);
 
 	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
 
@@ -1522,6 +1599,9 @@ public void OnMapStart()
 
 	//Lobby Sounds
 	PrecacheSound(SOUND_LOBBY);
+
+	//Mutation Sounds
+	PrecacheSound("ui/system_message_alert.wav");
 
 	//Packapunch Cinematic
 	PrecacheSound("misc/doomsday_cap_open.wav");
@@ -1863,7 +1943,7 @@ public Action Timer_RoundTimer(Handle timer)
 		char sPaused[16];
 		if (g_Match.pausetimer)
 			strcopy(sPaused, sizeof(sPaused), " (Paused)");
-		else if (GetTeamAliveCount(TEAM_SURVIVORS) > 0)
+		else if (GetTeamAliveCount(TEAM_SURVIVORS) > 0 && !GameRules_GetProp("m_bInWaitingForPlayers"))
 			g_Match.roundtime--;
 		
 		char sSpec[64];
@@ -1987,7 +2067,7 @@ public Action Timer_RoundTimer(Handle timer)
 			SpawnMachines();
 			SpawnWeapons();
 			SpawnMysteryBoxes();
-			SpawnPlanks();
+			RebuildAllPlanks();
 			SetupBuildings();
 			SetupDoors();
 
@@ -2029,6 +2109,8 @@ public Action Timer_RoundTimer(Handle timer)
 					g_Player[i].AddStat(STAT_WAVES, 1);
 
 			TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
+
+			g_Match.SetMutation(MUTATION_NONE);
 		}
 
 		case PHASE_WAITING:
@@ -2060,6 +2142,9 @@ public Action Timer_RoundTimer(Handle timer)
 			for (int i = 1; i <= MaxClients; i++)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
+			
+			if (GetRandomFloat(0.0, 100.0) <= 25.0)
+				g_Match.SetMutation(GetRandomInt(MUTATION_NOWEAPONS, MUTATION_TOTAL));
 		}
 	}
 
@@ -2559,8 +2644,11 @@ void SpawnWave(int amount)
 
 int GetZombieType()
 {
-	if (GetRandomFloat(0.0, 1000.0) < 950.0)
+	if (GetRandomFloat(0.0, 1000.0) < 950.0 && g_Match.mutation != MUTATION_SPECIALSONLY)
 		return GetZombieTypeByName(ZOMBIE_DEFAULT);
+	
+	if (g_Match.mutation == MUTATION_ONESPECIALONLY && g_Match.mutation_special != GetZombieTypeByName(ZOMBIE_DEFAULT))
+		return g_Match.mutation_special;
 	
 	int specials[32];
 	int total;
@@ -2574,6 +2662,17 @@ int GetZombieType()
 	}
 
 	return (total == 0) ? GetZombieTypeByName(ZOMBIE_DEFAULT) : specials[GetRandomInt(0, total - 1)];
+}
+
+int GetRandomZombieSpecial()
+{
+	int specials[32];
+	int total;
+
+	for (int i = 1; i < g_TotalZombieTypes; i++)
+		specials[total++] = i;
+
+	return (total == 0) ? GetZombieTypeByName(ZOMBIE_DEFAULT) : specials[GetRandomInt(1, total - 2)];
 }
 
 bool GetRandomSpawn(float origin[3])
@@ -2857,6 +2956,8 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.flDeathDropHeight = 2000.0;
 
 	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;
+	if (g_Match.mutation == MUTATION_MINIZOMBIES)
+		npc.nSize = 0.8;
 	npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
 	FixZombieCollisions(npc);
 
@@ -2902,6 +3003,8 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
 		npc.nSize = GetRandomFloat(1.0, 1.0);
+		if (g_Match.mutation == MUTATION_MINIZOMBIES)
+			npc.nSize = 0.8;
 		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
 		FixZombieCollisions(npc);
 
@@ -4037,7 +4140,7 @@ public Action TF2_OnCallMedic(int client)
 	g_Player[client].interact = time + 2;
 	int near = g_Player[client].nearinteractable;
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MACHINE)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MACHINE && g_Match.mutation != MUTATION_NOMACHINES)
 	{
 		int entity = near;
 		int index = g_Machines[entity].index;
@@ -4109,7 +4212,7 @@ public Action TF2_OnCallMedic(int client)
 		}
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_WEAPON)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_WEAPON && g_Match.mutation != MUTATION_NOWEAPONS)
 	{
 		int entity = near;
 		int index = g_SpawnedWeapons[entity].index;
@@ -4154,7 +4257,7 @@ public Action TF2_OnCallMedic(int client)
 		}
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MYSTERYBOX)
+	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MYSTERYBOX && g_Match.mutation != MUTATION_NOMYSTERYBOXES)
 	{
 		int entity = near;
 
@@ -4769,6 +4872,9 @@ public int MenuHandler_SpawnPowerups(Menu menu, MenuAction action, int param1, i
 
 void SpawnPowerup(float origin[3], int index = -1, bool cooldown = false)
 {
+	if (g_Match.mutation == MUTATION_NOPOWERUPS)
+		return;
+	
 	if (index == -1)
 		index = GetRandomInt(0, g_TotalPowerups - 1);
 	
@@ -5205,12 +5311,19 @@ void ResetPlank(int entity)
 	g_InteractableType[entity] = INTERACTABLE_TYPE_PLANK;
 }
 
-void SpawnPlanks()
+void RebuildAllPlanks()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_brush")) != -1)
 		if (HasName(entity, "plank_"))
 			ResetPlank(entity);
+}
+
+public Action Command_RebuildAllPlanks(int client, int args)
+{
+	RebuildAllPlanks();
+	CPrintToChat(client, "All planks have been rebuilt.");
+	return Plugin_Handled;
 }
 
 void OnPlankTick(int entity)
@@ -5251,7 +5364,7 @@ void OnPlankTick(int entity)
 	int zombie = -1;
 	while ((zombie = FindEntityByClassname(zombie, "base_boss")) != -1)
 	{
-		if (!IsEntVisibleTo(zombie, entity, 100.0))
+		if (!IsEntVisibleTo(zombie, entity, 120.0))
 			continue;
 
 		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(zombie);
@@ -5309,6 +5422,21 @@ bool DamagePlank(int entity, float damage = 15.0)
 	}
 
 	return true;
+}
+
+void BreakAllPlanks()
+{
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "func_brush")) != -1)
+		if (HasName(entity, "plank_"))
+			DamagePlank(entity, 99999.0);
+}
+
+public Action Command_BreakAllPlanks(int client, int args)
+{
+	BreakAllPlanks();
+	CPrintToChat(client, "All planks have been broken.");
+	return Plugin_Handled;
 }
 
 void OnPlankSurvivorTick(int entity, bool disabled)
@@ -6596,8 +6724,13 @@ float CalculateSpeed(int special)
 
 	if (basespeed == -1.0)
 		basespeed = ZOMBIE_BASE_SPEED;
+	
+	float speed = (basespeed + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
+
+	if (g_Match.mutation == MUTATION_LIGHTNINGROUND)
+		speed *= 1.5;
 		
-	return (basespeed + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
+	return speed;
 }
 
 int CalculateHealth(int entity)
@@ -6629,7 +6762,12 @@ int CalculateHealth(int entity)
 	}
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
-	return (basehealth + (g_Match.round * 2));
+	int health = (basehealth + (g_Match.round * 2));
+
+	if (g_Match.mutation == MUTATION_MOREHEALTH)
+		health += 150;
+	
+	return health;
 }
 
 float CalculateDamage()
@@ -6649,6 +6787,9 @@ float CalculateDamage()
 		damage *= 1.3;
 	else if (g_Match.round >= 5)
 		damage *= 1.2;
+	
+	if (g_Match.mutation == MUTATION_DAMAGEMULTIPLIER)
+		damage *= 1.50;
 	
 	return damage;
 }
