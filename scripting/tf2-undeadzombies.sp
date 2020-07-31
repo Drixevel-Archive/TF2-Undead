@@ -4301,8 +4301,6 @@ public Action TF2_OnCallMedic(int client)
 
 			g_Player[client].nearinteractable = -1;
 			g_Sync_NearInteractable.Clear(client);
-
-			g_Player[client].interactabletimer = time + 2;
 		}
 	}
 	
