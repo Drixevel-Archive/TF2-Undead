@@ -362,7 +362,38 @@ enum struct Match
 		if (this.mutation != MUTATION_NONE)
 		{
 			EmitSoundToAll("ui/system_message_alert.wav");
-			CPrintToChatAll("Mutation Round!");
+
+			char sMutation[64];
+			switch (mutation)
+			{
+				case MUTATION_NOWEAPONS:
+					strcopy(sMutation, sizeof(sMutation), "No Weapons");
+				case MUTATION_NOMACHINES:
+					strcopy(sMutation, sizeof(sMutation), "No Machines");
+				case MUTATION_NOMYSTERYBOXES:
+					strcopy(sMutation, sizeof(sMutation), "No Mystery Boxes");
+				case MUTATION_NOPOWERUPS:
+					strcopy(sMutation, sizeof(sMutation), "No Powerups");
+				case MUTATION_ALLDOORSOPEN:
+					strcopy(sMutation, sizeof(sMutation), "All Doors Opened");
+				case MUTATION_ALLDOORSCLOSED:
+					strcopy(sMutation, sizeof(sMutation), "All Doors Closed");
+				case MUTATION_SPECIALSONLY:
+					strcopy(sMutation, sizeof(sMutation), "Specials Only");
+				case MUTATION_ONESPECIALONLY:
+					strcopy(sMutation, sizeof(sMutation), "One Special Zombie");
+				case MUTATION_LIGHTNINGROUND:
+					strcopy(sMutation, sizeof(sMutation), "Lightning Round");
+				case MUTATION_DAMAGEMULTIPLIER:
+					strcopy(sMutation, sizeof(sMutation), "Damage Multiplier");
+				case MUTATION_MOREHEALTH:
+					strcopy(sMutation, sizeof(sMutation), "More Health");
+				case MUTATION_MINIZOMBIES:
+					strcopy(sMutation, sizeof(sMutation), "Mini Zombies");
+				case MUTATION_BOSSFIGHT:
+					strcopy(sMutation, sizeof(sMutation), "Boss Fight");
+			}
+			CPrintToChatAll("Mutation Round! Mutation {haunted}%s {default}is active!", sMutation);
 
 			switch (mutation)
 			{
@@ -2691,13 +2722,19 @@ bool GetRandomSpawn(float origin[3])
 		if (unlock != -1 && unlock > g_Match.round)
 			continue;
 		
-		if (GetCustomKeyValue(entity, "udm_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0)
+		if (GetCustomKeyValue(entity, "udm_required_open", required_door, sizeof(required_door)) && strlen(required_door) > 0 && (required_door_ent = FindEntityByName(required_door)) != -1)
 		{
-			if ((required_door_ent = FindEntityByName(required_door)) != -1 && HasEntProp(required_door_ent, Prop_Data, "m_eDoorState") && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
+			//PrintToChatAll("%i requires door %s open", entity, required_door);
+
+			//prop_door_rotating
+			if (HasEntProp(required_door_ent, Prop_Data, "m_eDoorState") && GetEntProp(required_door_ent, Prop_Data, "m_eDoorState") != 2)
 				continue;
 			
-			if ((required_door_ent = FindEntityByName(required_door)) != -1 && HasEntProp(required_door_ent, Prop_Data, "m_toggle_state") && GetEntProp(required_door_ent, Prop_Data, "m_toggle_state") != 1)
+			//func_door
+			if (HasEntProp(required_door_ent, Prop_Data, "m_toggle_state") && GetEntProp(required_door_ent, Prop_Data, "m_toggle_state") != 0)
 				continue;
+			
+			//PrintToChatAll("%i or %s passed", entity, required_door);
 		}
 		
 		entities[count++] = entity;
