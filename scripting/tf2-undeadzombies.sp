@@ -4598,6 +4598,12 @@ public Action TF2_OnCallMedic(int client)
 	{
 		if (g_MysteryBox[entity].hide)
 			return Plugin_Stop;
+		
+		if (g_MysteryBox[entity].inuse)
+		{
+			PrintErrorMessage(client, "This mystery box is currently active.");
+			return Plugin_Stop;
+		}
 
 		if (!g_MysteryBox[entity].status)
 		{
@@ -4606,7 +4612,7 @@ public Action TF2_OnCallMedic(int client)
 			return Plugin_Stop;
 		}
 
-		if (g_MysteryBox[entity].inuse || !g_Player[client].RemovePoints(g_MysteryBox[entity].price))
+		if (!g_Player[client].RemovePoints(g_MysteryBox[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
