@@ -1377,6 +1377,7 @@ enum struct ZombieTypes
 	int team;
 	float size;
 	float speed;
+	float damage;
 	int color[4];
 	char spawn_sound[PLATFORM_MAX_PATH];
 	char death_sound[PLATFORM_MAX_PATH];
@@ -3554,13 +3555,13 @@ public void OnZombieThink(int entity)
 		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX);
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
 		
-		float damage = CalculateDamage();
+		int type = g_Zombies[npc.Index].type;
+
+		float damage = CalculateDamage(type);
 		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
 		
 		SpeakResponseConcept(target, "TLK_PLAYER_PAIN");
 		EmitSoundToAll(GetRandomInt(0, 1) == 0 ? "weapons/fist_hit_world1.wav" : "weapons/fist_hit_world2.wav", target);
-
-		int type = g_Zombies[npc.Index].type;
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			g_Player[target].SetOnFire();
@@ -4207,12 +4208,12 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 	
 	if (attacker > 0 && attacker <= MaxClients && GetClientTeam(attacker) == TEAM_ZOMBIES)
 	{
-		damage = CalculateDamage();
+		int type = g_Player[attacker].type;
+
+		damage = CalculateDamage(type);
 		changed = true;
 		
 		SpeakResponseConcept(victim, "TLK_PLAYER_PAIN");
-
-		int type = g_Player[attacker].type;
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			g_Player[victim].SetOnFire();
@@ -5708,7 +5709,7 @@ void OnPlankTick(int entity)
 		float time = GetGameTime();
 		if (g_Player[i].plank_damage_tick == -1.0 || g_Player[i].plank_damage_tick != -1.0 && g_Player[i].plank_damage_tick <= time)
 		{
-			DamagePlank(entity, CalculateDamage());
+			DamagePlank(entity, CalculateDamage(g_Player[i].type));
 			g_Player[i].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
 		}
 		
@@ -5740,7 +5741,7 @@ void OnPlankTick(int entity)
 			NextBotGroundLocomotion loco = npc.GetLocomotion();
 			loco.FaceTowards(fOrigin);
 
-			DamagePlank(entity, CalculateDamage());
+			DamagePlank(entity, CalculateDamage(g_Zombies[npc.Index].type));
 			g_Zombies[npc.Index].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
 		}
 
@@ -6907,18 +6908,19 @@ void ParseSpecials()
 		do
 		{
 			kv.GetSectionName(g_ZombieTypes[g_TotalZombieTypes].name, 64);
-			kv.GetString("description", g_ZombieTypes[g_TotalZombieTypes].description, 128);
-			g_ZombieTypes[g_TotalZombieTypes].health = kv.GetNum("health");
-			g_ZombieTypes[g_TotalZombieTypes].class = kv.GetNum("class");
-			g_ZombieTypes[g_TotalZombieTypes].team = kv.GetNum("team");
-			g_ZombieTypes[g_TotalZombieTypes].size = kv.GetFloat("size");
-			g_ZombieTypes[g_TotalZombieTypes].speed = kv.GetFloat("speed");
+			kv.GetString("description", g_ZombieTypes[g_TotalZombieTypes].description, 128, "No Description has been found.");
+			g_ZombieTypes[g_TotalZombieTypes].health = kv.GetNum("health", -1);
+			g_ZombieTypes[g_TotalZombieTypes].class = kv.GetNum("class", -1);
+			g_ZombieTypes[g_TotalZombieTypes].team = kv.GetNum("team", -1);
+			g_ZombieTypes[g_TotalZombieTypes].size = kv.GetFloat("size", -1.0);
+			g_ZombieTypes[g_TotalZombieTypes].speed = kv.GetFloat("speed", -1.0);
+			g_ZombieTypes[g_TotalZombieTypes].damage = kv.GetFloat("damage", -1.0);
 			kv.GetColor4("color", g_ZombieTypes[g_TotalZombieTypes].color);
 			kv.GetString("spawn_sound", g_ZombieTypes[g_TotalZombieTypes].spawn_sound, PLATFORM_MAX_PATH);
 			kv.GetString("death_sound", g_ZombieTypes[g_TotalZombieTypes].death_sound, PLATFORM_MAX_PATH);
 			kv.GetString("particle", g_ZombieTypes[g_TotalZombieTypes].particle, 64);
-			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave");
-			g_ZombieTypes[g_TotalZombieTypes].hidden = view_as<bool>(kv.GetNum("hidden"));
+			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave", -1);
+			g_ZombieTypes[g_TotalZombieTypes].hidden = view_as<bool>(kv.GetNum("hidden", 0));
 			g_TotalZombieTypes++;
 		}
 		while (kv.GotoNextKey());
@@ -7124,9 +7126,13 @@ int CalculateHealth(int entity)
 	return health;
 }
 
-float CalculateDamage()
+float CalculateDamage(int special)
 {
-	float basedamage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX);
+	float basedamage = g_ZombieTypes[special].damage;
+
+	if (basedamage == -1.0)
+		basedamage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX);
+	
 	float damage = basedamage * g_Difficulty[g_Match.difficulty].damage_multiplier;
 
 	if (g_Match.round >= 30)
