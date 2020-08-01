@@ -42,6 +42,8 @@
 #define POWERUP_CHANCE 25.0
 #define POWERUP_COOLDOWN 16
 
+#define MAX_PERKS 4
+
 #define ZOMBIE_DEFAULT "Common"
 
 #define ZOMBIE_WAVE_TIMER_MIN 10.0
@@ -770,7 +772,36 @@ enum struct Player
 	//perks
 	void AddPerk(const char[] name)
 	{
+		if (this.perks.Length >= MAX_PERKS)
+		{
+			this.ReplacePerkMenu(name);
+			return;
+		}
+
 		this.perks.PushString(name);
+		this.ApplyPerk(name);
+	}
+
+	void ReplacePerkMenu(const char[] name)
+	{
+		Menu menu = new Menu(MenuHandler_ReplacePerk);
+		menu.SetTitle("Pick a perk to replace with %s: (max %i)", name, MAX_PERKS);
+
+		char sID[16]; char perk[64];
+		for (int i = 0; i < this.perks.Length; i++)
+		{
+			IntToString(i, sID, sizeof(sID));
+			this.perks.GetString(i, perk, sizeof(perk));
+			menu.AddItem(sID, perk);
+		}
+
+		PushMenuString(menu, "perk", name);
+		menu.Display(this.client, MENU_TIME_FOREVER);
+	}
+
+	void SetPerk(const char[] name, int index)
+	{
+		this.perks.SetString(index, name);
 		this.ApplyPerk(name);
 	}
 
@@ -999,6 +1030,29 @@ enum struct Player
 }
 
 Player g_Player[MAXPLAYERS + 1];
+
+public int MenuHandler_ReplacePerk(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			char sID[16]; char sPerk[64];
+			menu.GetItem(param2, sID, sizeof(sID), _, sPerk, sizeof(sPerk));
+
+			char sName[64];
+			GetMenuString(menu, "perk", sName, sizeof(sName));
+
+			int index = StringToInt(sID);
+			g_Player[param1].perks.SetString(index, sName);
+			g_Player[param1].ApplyPerk(sName);
+
+			CPrintToChat(param1, "%s has been replaced with %s.", sPerk, sName);
+		}
+		case MenuAction_End:
+			delete menu;
+	}
+}
 
 public Action Timer_Regen(Handle timer, any data)
 {
