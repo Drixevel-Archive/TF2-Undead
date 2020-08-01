@@ -5328,6 +5328,10 @@ bool OnPowerupPickup(int client, int entity)
 		{
 			KillAllZombies();
 			ScreenFadeAll2();
+
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+					g_Player[i].AddPoints(400);
 		}
 		//max ammo
 		case 3:
