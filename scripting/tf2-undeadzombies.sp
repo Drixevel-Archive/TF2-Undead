@@ -1047,7 +1047,7 @@ public int MenuHandler_ReplacePerk(Menu menu, MenuAction action, int param1, int
 			g_Player[param1].perks.SetString(index, sName);
 			g_Player[param1].ApplyPerk(sName);
 
-			CPrintToChat(param1, "%s has been replaced with %s.", sPerk, sName);
+			CPrintToChat(param1, "{haunted}%s {default}has been replaced with {haunted}%s{default}.", sPerk, sName);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -4386,11 +4386,13 @@ public Action TF2_OnCallMedic(int client)
 	}
 	
 	g_Player[client].interact = time + 2;
-	int near = g_Player[client].nearinteractable;
+	int entity = g_Player[client].nearinteractable;
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MACHINE && g_Match.mutation != MUTATION_NOMACHINES)
+	if (entity == -1)
+		return Plugin_Stop;
+
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_MACHINE && g_Match.mutation != MUTATION_NOMACHINES)
 	{
-		int entity = near;
 		int index = g_Machines[entity].index;
 
 		if (g_Machines[entity].hide)
@@ -4418,23 +4420,31 @@ public Action TF2_OnCallMedic(int client)
 			g_Player[client].AddPoints(doublepoints ? 100 : 50);
 			EmitGameSoundToAll("MVM.MoneyPickup", client);
 			g_Machines[entity].coins = false;
+			return Plugin_Stop;
 		}
-		else if (StrEqual(g_MachinesData[index].name, "packapunch", false) && value >= 4)
+		
+		if (StrEqual(g_MachinesData[index].name, "packapunch", false) && value >= 4)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "This weapon is max level for packapunch.");
+			return Plugin_Stop;
 		}
-		else if (StrEqual(g_MachinesData[index].name, "packapunch", false) && g_Machines[entity].inuse)
+		
+		if (StrEqual(g_MachinesData[index].name, "packapunch", false) && g_Machines[entity].inuse)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "Machine is currently in use.");
+			return Plugin_Stop;
 		}
-		else if (!g_Player[client].RemovePoints(g_Machines[entity].price))
+		
+		if (!g_Player[client].RemovePoints(g_Machines[entity].price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "You must have {haunted}%i {default}points to unlock this perk.", g_Machines[entity].price);
+			return Plugin_Stop;
 		}
-		else if (g_Player[client].HasPerk(g_MachinesData[index].name))
+		
+		if (!StrEqual(g_MachinesData[index].name, "packapunch", false) && g_Player[client].HasPerk(g_MachinesData[index].name))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 
@@ -4442,37 +4452,36 @@ public Action TF2_OnCallMedic(int client)
 				PrintErrorMessage(client, "You have already purchased this perk.");
 			else
 				PrintErrorMessage(client, "You have maxed out the amount of perks for this machine.");
+			
+			return Plugin_Stop;
 		}
+
+		SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+
+		char sSound[PLATFORM_MAX_PATH];
+		FormatEx(sSound, sizeof(sSound), "undead/machines/%s.wav", g_MachinesData[index].name);
+		EmitSoundToAll(sSound, entity, SNDCHAN_AUTO, SNDLEVEL_TRAIN, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, entity, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+
+		if (StrEqual(g_MachinesData[index].name, "packapunch", false))
+			StartPackapunchEvent(client, entity, active);
 		else
 		{
-			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-
-			char sSound[PLATFORM_MAX_PATH];
-			FormatEx(sSound, sizeof(sSound), "undead/machines/%s.wav", g_MachinesData[index].name);
-			EmitSoundToAll(sSound, entity, SNDCHAN_AUTO, SNDLEVEL_TRAIN, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, entity, NULL_VECTOR, NULL_VECTOR, true, 0.0);
-
-			if (StrEqual(g_MachinesData[index].name, "packapunch", false))
-				StartPackapunchEvent(client, entity, active);
-			else
-			{
-				g_Player[client].AddPerk(g_MachinesData[index].name);
-				CPrintToChat(client, "You have purchased the Machine perk: {haunted}%s", g_MachinesData[index].display);
-			}
-
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_MACHINES, 1);
-
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
-
-			g_Player[client].interactabletimer = time + (StrEqual(g_MachinesData[index].name, "packapunch", false) ? 6 : 2);
+			g_Player[client].AddPerk(g_MachinesData[index].name);
+			CPrintToChat(client, "You have purchased the Machine perk: {haunted}%s", g_MachinesData[index].display);
 		}
+
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_MACHINES, 1);
+
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
+
+		g_Player[client].interactabletimer = time + (StrEqual(g_MachinesData[index].name, "packapunch", false) ? 6 : 2);
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_WEAPON && g_Match.mutation != MUTATION_NOWEAPONS)
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_WEAPON && g_Match.mutation != MUTATION_NOWEAPONS)
 	{
-		int entity = near;
 		int index = g_SpawnedWeapons[entity].index;
 
 		if (g_SpawnedWeapons[entity].hide)
@@ -4502,33 +4511,30 @@ public Action TF2_OnCallMedic(int client)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			return Plugin_Stop;
 		}
+
+		SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+
+		GiveWallWeapon(client, index, slot);
+
+		if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
+			CPrintToChat(client, "You have purchased ammo for your weapon: {haunted}%s", g_CustomWeapons[index].name);
 		else
-		{
-			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+			CPrintToChat(client, "You have purchased the Weapon: {haunted}%s", g_CustomWeapons[index].name);
 
-			GiveWallWeapon(client, index, slot);
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_WEAPONS, 1);
 
-			if (IsValidEntity(weapon) && g_WeaponIndex[weapon] == index)
-				CPrintToChat(client, "You have purchased ammo for your weapon: {haunted}%s", g_CustomWeapons[index].name);
-			else
-				CPrintToChat(client, "You have purchased the Weapon: {haunted}%s", g_CustomWeapons[index].name);
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
 
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_WEAPONS, 1);
-
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
-
-			g_Player[client].interactabletimer = time + 2;
-		}
+		g_Player[client].interactabletimer = time + 2;
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_MYSTERYBOX && g_Match.mutation != MUTATION_NOMYSTERYBOXES)
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_MYSTERYBOX && g_Match.mutation != MUTATION_NOMYSTERYBOXES)
 	{
-		int entity = near;
-
 		if (g_MysteryBox[entity].hide)
 			return Plugin_Stop;
 
@@ -4543,49 +4549,45 @@ public Action TF2_OnCallMedic(int client)
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			return Plugin_Stop;
 		}
-		else
-		{
-			OpenMysteryBox(client, entity);
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-			CPrintToChat(client, "You have opened the {haunted}Mystery Box{default}.");
 
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_MYSTERYBOXES, 1);
+		OpenMysteryBox(client, entity);
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+		CPrintToChat(client, "You have opened the {haunted}Mystery Box{default}.");
 
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_MYSTERYBOXES, 1);
 
-			g_Player[client].interactabletimer = time + 2;
-		}
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
+
+		g_Player[client].interactabletimer = time + 2;
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_PLANK)
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_PLANK)
 	{
-		int entity = near;
-
 		if (!GetEntProp(entity, Prop_Data, "m_iDisabled") || (g_RebuildDelay[entity] != -1.0 && g_RebuildDelay[entity] > GetGameTime()))
-			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
-		else
 		{
-			g_Player[client].AddPoints(75);
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-
-			ResetPlank(entity);
-			CPrintToChat(client, "You have rebuilt a {haunted}plank{default}.");
-
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_PLANKS, 1);
-
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
+			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			return Plugin_Stop;
 		}
+
+		g_Player[client].AddPoints(75);
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+
+		ResetPlank(entity);
+		CPrintToChat(client, "You have rebuilt a {haunted}plank{default}.");
+
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_PLANKS, 1);
+
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
 	}
 	
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_BUILDING)
-	{
-		int entity = near;
-	
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_BUILDING)
+	{	
 		char sCost[64];
 		GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
 	
@@ -4595,86 +4597,82 @@ public Action TF2_OnCallMedic(int client)
 		if (GetEntProp(entity, Prop_Send, "m_bDisabled") == 0 || g_RechargeBuilding[entity] != -1 && g_RechargeBuilding[entity] > GetTime() || !g_Player[client].RemovePoints(StringToInt(sCost)))
 		{
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			return Plugin_Stop;
 		}
-		else
+
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
+
+		char sBuilding[64];
+		switch (TF2_GetObjectType(entity))
 		{
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
-
-			char sBuilding[64];
-			switch (TF2_GetObjectType(entity))
+			case TFObject_Dispenser:
+				strcopy(sBuilding, sizeof(sBuilding), "Dispenser");
+			case TFObject_Teleporter:
 			{
-				case TFObject_Dispenser:
-					strcopy(sBuilding, sizeof(sBuilding), "Dispenser");
-				case TFObject_Teleporter:
+				switch (TF2_GetObjectMode(entity))
 				{
-					switch (TF2_GetObjectMode(entity))
-					{
-						case TFObjectMode_Entrance:
-							strcopy(sBuilding, sizeof(sBuilding), "Teleporter Entrance");
-						case TFObjectMode_Exit:
-							strcopy(sBuilding, sizeof(sBuilding), "Teleporter Exit");
-					}
+					case TFObjectMode_Entrance:
+						strcopy(sBuilding, sizeof(sBuilding), "Teleporter Entrance");
+					case TFObjectMode_Exit:
+						strcopy(sBuilding, sizeof(sBuilding), "Teleporter Exit");
 				}
-				case TFObject_Sentry:
-					strcopy(sBuilding, sizeof(sBuilding), "Sentry");
-				case TFObject_Sapper:
-					strcopy(sBuilding, sizeof(sBuilding), "Sapper");
 			}
-
-			SetEntProp(entity, Prop_Send, "m_bDisabled", 0);
-			g_DisableBuilding[entity] = GetTime() + StringToInt(sDuration);
-			CPrintToChat(client, "You have rented this {haunted}%s{default}.", sBuilding);
-
-			float origin[3];
-			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
-
-			char sAnno[64];
-			FormatEx(sAnno, sizeof(sAnno), "%s Active", sBuilding);
-			TF2_CreateAnnotationToAll(origin, sAnno, StringToFloat(sDuration), "vo/null.wav");
-
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_BUILDINGS, 1);
-			
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
-
-			g_Player[client].interactabletimer = time + 2;
+			case TFObject_Sentry:
+				strcopy(sBuilding, sizeof(sBuilding), "Sentry");
+			case TFObject_Sapper:
+				strcopy(sBuilding, sizeof(sBuilding), "Sapper");
 		}
+
+		SetEntProp(entity, Prop_Send, "m_bDisabled", 0);
+		g_DisableBuilding[entity] = GetTime() + StringToInt(sDuration);
+		CPrintToChat(client, "You have rented this {haunted}%s{default}.", sBuilding);
+
+		float origin[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+
+		char sAnno[64];
+		FormatEx(sAnno, sizeof(sAnno), "%s Active", sBuilding);
+		TF2_CreateAnnotationToAll(origin, sAnno, StringToFloat(sDuration), "vo/null.wav");
+
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_BUILDINGS, 1);
+		
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
+
+		g_Player[client].interactabletimer = time + 2;
 	}
 
-	if (near != -1 && g_InteractableType[near] == INTERACTABLE_TYPE_DOORS)
-	{
-		int entity = near;
-	
+	if (g_InteractableType[entity] == INTERACTABLE_TYPE_DOORS)
+	{	
 		char sCost[64];
 		GetCustomKeyValue(entity, "udm_cost", sCost, sizeof(sCost));
 		
 		if (!g_Player[client].RemovePoints(StringToInt(sCost)))
 		{
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
+			return Plugin_Stop;
 		}
-		else
-		{
-			EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
-			AcceptEntityInput(entity, "Open");
-			CPrintToChat(client, "You have opened this {haunted}door{default}.");
+		EmitGameSoundToClient(client, "MVM.PlayerUpgraded");
 
-			float origin[3];
-			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+		AcceptEntityInput(entity, "Open");
+		CPrintToChat(client, "You have opened this {haunted}door{default}.");
 
-			char sAnno[64];
-			FormatEx(sAnno, sizeof(sAnno), "Door Opened");
-			TF2_CreateAnnotationToAll(origin, sAnno, 5.0, "vo/null.wav");
+		float origin[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
 
-			if (IsPlayerIndex(client))
-				g_Player[client].AddStat(STAT_DOORS, 1);
-			
-			g_Player[client].nearinteractable = -1;
-			g_Sync_NearInteractable.Clear(client);
+		char sAnno[64];
+		FormatEx(sAnno, sizeof(sAnno), "Door Opened");
+		TF2_CreateAnnotationToAll(origin, sAnno, 5.0, "vo/null.wav");
 
-			g_Player[client].interactabletimer = time + 2;
-		}
+		if (IsPlayerIndex(client))
+			g_Player[client].AddStat(STAT_DOORS, 1);
+		
+		g_Player[client].nearinteractable = -1;
+		g_Sync_NearInteractable.Clear(client);
+
+		g_Player[client].interactabletimer = time + 2;
 	}
 
 	return Plugin_Stop;
@@ -7719,8 +7717,8 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 
 				SDKUnhook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
 				EquipWeapon(client, weapon);
-				g_Player[client].AddPerk("packapunch");
-
+				g_Player[client].ApplyPerk("packapunch");
+				
 				g_Player[client].punchanim = null;
 				return Plugin_Stop;
 			}
