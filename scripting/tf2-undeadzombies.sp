@@ -1339,6 +1339,8 @@ enum struct MysteryBox
 	int glow;
 	int unlock;
 
+	Handle timer;
+
 	void Reset()
 	{
 		this.status = true;
@@ -1349,6 +1351,8 @@ enum struct MysteryBox
 		this.inuse = false;
 		this.glow = -1;
 		this.unlock = -1;
+
+		this.timer = null;
 	}
 }
 
@@ -5490,6 +5494,9 @@ void DestroyMysteryBoxes()
 
 void OpenMysteryBox(int client, int mysterybox)
 {
+	if (g_MysteryBox[mysterybox].timer != null)
+		return;
+	
 	int index = GetRandomMysteryWeapon(client);
 
 	if (index == -1)
@@ -5517,9 +5524,11 @@ void OpenMysteryBox(int client, int mysterybox)
 	DispatchSpawn(display);
 	SetEntitySelfDestruct(display, 15.0);
 	TF2_CreateGlow("display_color", display, {255, 255, 255, 200});
+
+	StopTimer(g_MysteryBox[mysterybox].timer);
 	
 	DataPack pack;
-	CreateDataTimer(0.1, Timer_MysteryBox, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	g_MysteryBox[mysterybox].timer = CreateDataTimer(0.1, Timer_MysteryBox, pack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	pack.WriteCell(GetClientUserId(client));
 	pack.WriteCell(EntIndexToEntRef(mysterybox));
 	pack.WriteCell(EntIndexToEntRef(display));
@@ -5544,6 +5553,7 @@ public Action Timer_MysteryBox(Handle timer, DataPack pack)
 	if (!IsPlayerIndex(client) || !IsValidEntity(mysterybox) || !IsValidEntity(display))
 	{
 		CloseMysteryBox(display, mysterybox);
+		g_MysteryBox[mysterybox].timer = null;
 		return Plugin_Stop;
 	}
 
@@ -5553,6 +5563,7 @@ public Action Timer_MysteryBox(Handle timer, DataPack pack)
 	if (ticks >= 15.0)
 	{
 		CloseMysteryBox(display, mysterybox);
+		g_MysteryBox[mysterybox].timer = null;
 		return Plugin_Stop;
 	}
 	else if (ticks >= 5.0)
@@ -5600,6 +5611,9 @@ public Action Timer_MysteryBox(Handle timer, DataPack pack)
 			SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 			GiveCustomWeapon(client, index);
 			CloseMysteryBox(display, mysterybox);
+
+			g_MysteryBox[mysterybox].timer = null;
+			return Plugin_Stop;
 		}
 	}
 
