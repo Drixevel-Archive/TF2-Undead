@@ -927,6 +927,65 @@ enum struct Player
 		}
 	}
 
+	void RemovePerks()
+	{
+		if (!IsClientInGame(this.client) || !IsPlayerAlive(this.client))
+			return;
+		
+		char sPerk[MAX_NAME_LENGTH];
+		for (int i = 0; i < this.perks.Length; i++)
+		{
+			this.perks.GetString(i, sPerk, sizeof(sPerk));
+			this.RemovePerk(sPerk);
+		}
+	}
+
+	void RemovePerk(const char[] name)
+	{
+		if (!IsClientInGame(this.client) || !IsPlayerAlive(this.client))
+			return;
+
+		if (StrEqual(name, "speedcola", false))
+		{
+			TF2Attrib_RemoveByName(this.client, "Reload time decreased");
+			TF2Attrib_RemoveByName(this.client, "deploy time decreased");
+		}
+		else if (StrEqual(name, "juggernog", false))
+		{
+			SetEntityHealth(this.client, 150);
+		}
+		else if (StrEqual(name, "staminup", false))
+		{
+			TF2Attrib_RemoveByName(this.client, "move speed bonus");
+			TF2_AddCondition(this.client, TFCond_SpeedBuffAlly, 0.0);
+		}
+		else if (StrEqual(name, "deadshot", false))
+		{
+			int weapon = -1;
+			for (int x = 0; x < 5; x++)
+			{
+				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
+					continue;
+				
+				TF2Attrib_RemoveByName(weapon, "projectile penetration");
+				TF2Attrib_RemoveByName(weapon, "energy weapon penetration");
+				TF2Attrib_RemoveByName(weapon, "projectile penetration heavy");
+			}
+		}
+		else if (StrEqual(name, "doubletap", false))
+		{
+			int weapon = -1;
+			for (int x = 0; x < 5; x++)
+			{
+				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
+					continue;
+				
+				//TF2Attrib_SetFireRateBonus(weapon, 0.03);
+				TF2Attrib_RemoveByName(weapon, "bullets per shot bonus");
+			}
+		}
+	}
+
 	void ClearPerks()
 	{
 		this.perks.Clear();
@@ -1045,6 +1104,7 @@ public int MenuHandler_ReplacePerk(Menu menu, MenuAction action, int param1, int
 
 			int index = StringToInt(sID);
 			g_Player[param1].perks.SetString(index, sName);
+			g_Player[param1].RemovePerk(sPerk);
 			g_Player[param1].ApplyPerk(sName);
 
 			CPrintToChat(param1, "{haunted}%s {default}has been replaced with {haunted}%s{default}.", sPerk, sName);
@@ -7718,7 +7778,7 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 				SDKUnhook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
 				EquipWeapon(client, weapon);
 				g_Player[client].ApplyPerk("packapunch");
-				
+
 				g_Player[client].punchanim = null;
 				return Plugin_Stop;
 			}
