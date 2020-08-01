@@ -3745,8 +3745,8 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 			g_Player[attacker].AddPoints(points);
 			g_Player[attacker].zombiekills++;
 		}
-
-		OnZombieDeath(victim, true, true, attacker);
+		
+		OnZombieDeath(victim, true, true, attacker, damagecustom);
 	}
 	else if (IsPlayerIndex(attacker))
 	{
@@ -6558,7 +6558,7 @@ public int MenuHandler_mysterybox(Menu menu, MenuAction action, int param1, int 
 	}
 }
 
-void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, int attacker = -1)
+void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, int attacker = -1, int damagecustom = -1)
 {
 	CBaseNPC npc;
 	if (entity > MaxClients && (npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
@@ -6603,7 +6603,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		{
 			char sModel[PLATFORM_MAX_PATH];
 			GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
-			CreateRagdoll(vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class]);
+			CreateRagdoll(entity, vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
 		}
 
 		AcceptEntityInput(entity, "Kill");
@@ -6620,7 +6620,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 	}
 }
 
-void CreateRagdoll(float origin[3], float angles[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0)
+void CreateRagdoll(int entity, float origin[3], float angles[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0, bool dissolve = false)
 {
 	if (!convar_Ragdolls.BoolValue || g_Match.spawn_robots)
 		return;
@@ -6668,6 +6668,23 @@ void CreateRagdoll(float origin[3], float angles[3], const char[] model, int ski
 
 		if (lifetime > 0.0)
 			CreateTimer(lifetime, Timer_Delete, EntIndexToEntRef(ragdoll));
+		
+		if (dissolve)
+		{
+			char dname[32];
+			Format(dname, sizeof(dname), "dis_%d", entity);
+
+			int dissolver = CreateEntityByName("env_entity_dissolver");
+
+			if (IsValidEntity(dissolver))
+			{
+				DispatchKeyValue(ragdoll, "targetname", dname);
+				DispatchKeyValue(dissolver, "dissolvetype", "0");
+				DispatchKeyValue(dissolver, "target", dname);
+				AcceptEntityInput(dissolver, "Dissolve");
+				AcceptEntityInput(dissolver, "kill");
+			}
+		}
 	}
 }
 
