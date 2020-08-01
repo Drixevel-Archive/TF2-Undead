@@ -4493,7 +4493,6 @@ public Action TF2_OnCallMedic(int client)
 		
 		if (StrEqual(g_MachinesData[index].name, "packapunch", false) && g_Machines[entity].inuse)
 		{
-			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			PrintErrorMessage(client, "Machine is currently in use.");
 			return Plugin_Stop;
 		}
@@ -7807,7 +7806,7 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 				SDKUnhook(client, SDKHook_WeaponSwitch, OnWeaponSwitch);
 				EquipWeapon(client, weapon);
 				g_Player[client].ApplyPerk("packapunch");
-
+				SpeakResponseConcept(client, "TLK_PLAYER_CHEERS");
 				g_Player[client].punchanim = null;
 				return Plugin_Stop;
 			}
