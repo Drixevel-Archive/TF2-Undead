@@ -269,7 +269,6 @@ enum struct Match
 	bool spawn_robots;
 
 	int powerups_cooldown;
-	int coins_machine;
 
 	int mutation;
 	int mutation_special;
@@ -291,7 +290,6 @@ enum struct Match
 		this.spawn_robots = false;
 
 		this.powerups_cooldown = -1;
-		this.coins_machine = -1;
 
 		this.mutation = MUTATION_NONE;
 		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
@@ -314,7 +312,6 @@ enum struct Match
 		this.spawn_robots = false;
 
 		this.powerups_cooldown = -1;
-		this.coins_machine = -1;
 
 		this.mutation = MUTATION_NONE;
 		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
@@ -1164,6 +1161,7 @@ enum struct Machines
 	int glow;
 	Handle soundtimer;
 	bool inuse;
+	bool coins;
 	
 	void Reset()
 	{
@@ -1180,6 +1178,7 @@ enum struct Machines
 		StopTimer(this.soundtimer);
 
 		this.inuse = false;
+		this.coins = false;
 	}
 
 	void StartSound()
@@ -2270,12 +2269,10 @@ public Action Timer_RoundTimer(Handle timer)
 
 			CreateTF2Timer(g_Match.roundtime);
 
-			g_Match.coins_machine = GetRandomInt(0, g_TotalMachines - 1);
-
 			for (int i = 1; i <= MaxClients; i++)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
-
+			
 			return Plugin_Continue;
 		}
 
@@ -4342,7 +4339,7 @@ public Action TF2_OnCallMedic(int client)
 		int entity = near;
 		int index = g_Machines[entity].index;
 
-		if (!g_Machines[entity].hide)
+		if (g_Machines[entity].hide)
 			return Plugin_Stop;
 
 		if (!g_Machines[entity].status)
@@ -4362,11 +4359,11 @@ public Action TF2_OnCallMedic(int client)
 		int value;
 		g_PackaPunchUpgrades.GetValue(sEntity, value);
 
-		if (g_Machines[entity].index == g_Match.coins_machine && GetEntityFlags(client) & FL_DUCKING)
+		if (g_Machines[entity].coins && GetEntityFlags(client) & FL_DUCKING)
 		{
 			g_Player[client].AddPoints(doublepoints ? 100 : 50);
 			EmitGameSoundToAll("MVM.MoneyPickup", client);
-			g_Match.coins_machine = -1;
+			g_Machines[entity].coins = false;
 		}
 		else if (StrEqual(g_MachinesData[index].name, "packapunch", false) && value >= 4)
 		{
@@ -4424,7 +4421,7 @@ public Action TF2_OnCallMedic(int client)
 		int entity = near;
 		int index = g_SpawnedWeapons[entity].index;
 
-		if (!g_SpawnedWeapons[entity].hide)
+		if (g_SpawnedWeapons[entity].hide)
 			return Plugin_Stop;
 
 		if (!g_SpawnedWeapons[entity].status)
@@ -4478,7 +4475,7 @@ public Action TF2_OnCallMedic(int client)
 	{
 		int entity = near;
 
-		if (!g_MysteryBox[entity].hide)
+		if (g_MysteryBox[entity].hide)
 			return Plugin_Stop;
 
 		if (!g_MysteryBox[entity].status)
@@ -4702,13 +4699,15 @@ void SpawnMachines()
 		int glow = TF2_CreateGlow("machine_color", machine, view_as<int>({200, 200, 255, 150}));
 
 		g_Machines[machine].target = entity;
-
+		g_Machines[machine].status = true;
+		g_Machines[machine].hide = false;
 		g_Machines[machine].entity = machine;
 		g_Machines[machine].index = index;
 		g_Machines[machine].price = StringToInt(sCost);
 		g_Machines[machine].unlock = unlock;
 		g_Machines[machine].glow = glow;
 		g_Machines[machine].StartSound();
+		g_Machines[machine].coins = true;
 		g_InteractableType[machine] = INTERACTABLE_TYPE_MACHINE;
 
 		SDKHook(machine, SDKHook_OnTakeDamagePost, OnMachineDamage);
@@ -4737,7 +4736,7 @@ public void OnMachineDamage(int victim, int attacker, int inflictor, float damag
 
 void OnMachineTick(int entity)
 {
-	if (!g_Machines[entity].status || !g_Machines[entity].hide)
+	if (!g_Machines[entity].status || g_Machines[entity].hide)
 		return;
 	
 	int unlock = g_Machines[entity].unlock;
@@ -4898,6 +4897,8 @@ void SpawnWeapons()
 
 		g_SpawnedWeapons[weapon].target = entity;
 
+		g_SpawnedWeapons[weapon].status = true;
+		g_SpawnedWeapons[weapon].hide = false;
 		g_SpawnedWeapons[weapon].index = index;
 		g_SpawnedWeapons[weapon].price = StringToInt(sCost);
 		g_SpawnedWeapons[weapon].unlock = unlock;
@@ -4919,7 +4920,7 @@ int GetCustomWeaponIndex(const char[] name)
 
 void OnWeaponTick(int entity)
 {
-	if (!g_SpawnedWeapons[entity].status || !g_SpawnedWeapons[entity].hide)
+	if (!g_SpawnedWeapons[entity].status || g_SpawnedWeapons[entity].hide)
 		return;
 	
 	int unlock = g_SpawnedWeapons[entity].unlock;
@@ -5313,6 +5314,7 @@ void SpawnMysteryBoxes()
 		g_MysteryBox[mysterybox].target = entity;
 
 		g_MysteryBox[mysterybox].status = true;
+		g_MysteryBox[mysterybox].hide = false;
 		g_MysteryBox[mysterybox].price = 1000;
 		g_MysteryBox[mysterybox].inuse = false;
 		g_MysteryBox[mysterybox].glow = TF2_CreateGlow("mysterybox_color", mysterybox, view_as<int>({255, 200, 255, 150}));
@@ -5323,7 +5325,7 @@ void SpawnMysteryBoxes()
 
 void OnMysteryBoxTick(int entity)
 {
-	if (!g_MysteryBox[entity].status || !g_MysteryBox[entity].hide)
+	if (!g_MysteryBox[entity].status || g_MysteryBox[entity].hide)
 		return;
 	
 	int unlock = g_MysteryBox[entity].unlock;
