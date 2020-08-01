@@ -3757,7 +3757,12 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 		int points = doublepoints ? 20 : 10;
 
 		if (GetActiveWeaponSlot(attacker) == 2)
+		{
 			points = RoundFloat(float(points) * 1.5);
+			
+			if (GetRandomFloat(0.0, 100.0) >= 50.0)
+				g_Zombies[npc.Index].target = attacker;
+		}
 		
 		g_Player[attacker].AddPoints(doublepoints ? 20 : 10);
 		g_Player[attacker].AddStat(STAT_DAMAGE, RoundFloat(damage));
