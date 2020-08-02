@@ -2459,7 +2459,7 @@ void UnlockRelays()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "logic_relay")) != -1)
-		if (HasName(entity, "unlock_obstacle") && GetWaveUnlockInt(entity) <= (g_Match.round + 1))
+		if (HasName(entity, "udm_obstacle_unlock") && GetWaveUnlockInt(entity) <= (g_Match.round + 1))
 			AcceptEntityInput(entity, "Trigger");
 	
 	RecomputeNavs();
@@ -2469,7 +2469,7 @@ void LockRelays()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "logic_relay")) != -1)
-		if (HasName(entity, "lock_obstacle"))
+		if (HasName(entity, "udm_obstacle_lock"))
 			AcceptEntityInput(entity, "Trigger");
 	
 	RecomputeNavs();
@@ -2834,7 +2834,7 @@ public Action OnCurrencySpawn(int entity)
 
 public void OnTeleportRelativeSpawnPost(int entity)
 {
-	if (IsName(entity, "survivor_blocker"))
+	if (IsName(entity, "udm_survivor_blocker"))
 	{
 		SDKHook(entity, SDKHook_StartTouch, OnTeleportTouch);
 		SDKHook(entity, SDKHook_Touch, OnTeleportTouch);
@@ -2844,7 +2844,7 @@ public void OnTeleportRelativeSpawnPost(int entity)
 
 public void OnTriggerMultipleSpawnPost(int entity)
 {
-	if (IsName(entity, "insidebase"))
+	if (IsName(entity, "udm_insidebase"))
 		SDKHook(entity, SDKHook_Touch, OnEnablePowerups);
 }
 
@@ -4411,7 +4411,7 @@ public void OnGameFrame()
 
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_brush")) != -1)
-		if (HasName(entity, "plank_"))
+		if (HasName(entity, "udm_plank"))
 			OnPlankTick(entity);
 
 	entity = -1;
@@ -4790,7 +4790,7 @@ void SpawnMachines()
 	int entity = -1; int unlock;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
 	{
-		if (!HasName(entity, "onMachineSpawn"))
+		if (!HasName(entity, "udm_machine"))
 			continue;
 		
 		unlock = GetWaveUnlockInt(entity);
@@ -4978,7 +4978,7 @@ void SpawnWeapons()
 	int entity = -1; int unlock;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
 	{
-		if (!HasName(entity, "onWeaponSpawn"))
+		if (!HasName(entity, "udm_weapon"))
 			continue;
 		
 		unlock = GetWaveUnlockInt(entity);
@@ -5423,7 +5423,7 @@ void SpawnMysteryBoxes()
 	int entity = -1; int unlock;
 	while ((entity = FindEntityByClassname(entity, "info_target")) != -1)
 	{
-		if (!HasName(entity, "onMysteryBoxSpawn"))
+		if (!HasName(entity, "udm_mysterybox"))
 			continue;
 		
 		unlock = GetWaveUnlockInt(entity);
@@ -5698,7 +5698,7 @@ void RebuildAllPlanks()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_brush")) != -1)
-		if (HasName(entity, "plank_"))
+		if (HasName(entity, "udm_plank"))
 			ResetPlank(entity);
 }
 
@@ -5811,7 +5811,7 @@ void BreakAllPlanks()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_brush")) != -1)
-		if (HasName(entity, "plank_"))
+		if (HasName(entity, "udm_plank"))
 			DamagePlank(entity, 99999.0);
 }
 
@@ -5943,12 +5943,12 @@ void SetupDoors()
 {
 	int entity = -1;
 	while ((entity = FindEntityByClassname(entity, "func_door")) != -1)
-		if (HasName(entity, "unlock_door_"))
+		if (HasName(entity, "udm_door_unlock"))
 			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 	
 	entity = -1;
 	while ((entity = FindEntityByClassname(entity, "prop_door_rotating")) != -1)
-		if (HasName(entity, "unlock_door_"))
+		if (HasName(entity, "udm_door_unlock"))
 			g_InteractableType[entity] = INTERACTABLE_TYPE_DOORS;
 }
 
