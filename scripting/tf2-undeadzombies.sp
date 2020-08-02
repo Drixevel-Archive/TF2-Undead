@@ -1917,6 +1917,9 @@ public void OnMapStart()
 	PrecacheSound("player/crit_received1.wav");
 	PrecacheSound("player/crit_hit.wav");
 
+	//Packapunch
+	PrecacheSound("coach/coach_attack_here.wav");
+
 	//Blood Particles
 	for (int i = 0; i < 5; i++)
 		PrecacheParticle(sBloodParticles[i]);
@@ -7672,6 +7675,10 @@ public Action Command_ReloadConfigs(int client, int ars)
 
 int punch_weapon;
 
+#define PUNCH_PHASE_UPGRADING 0
+#define PUNCH_PHASE_WAITING 1
+#define PUNCH_PHASE_DESTROYING 2
+
 void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 {
 	if (!IsValidEntity(weapon) || !IsValidEntity(punch))
@@ -7722,7 +7729,7 @@ void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 	pack.WriteCell(punch);
 	pack.WriteCell(propweapon);
 	pack.WriteCell(0.0);
-	pack.WriteCell(0);
+	pack.WriteCell(PUNCH_PHASE_UPGRADING);
 }
 
 stock float[] GetAbsOrigin(int client)
@@ -7802,26 +7809,36 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 
 	ticks += 0.1;
 
-	if (ticks >= 5.0 && phase == 0)
+	float boxorigin[3];
+	GetEntPropVector(punch, Prop_Send, "m_vecOrigin", boxorigin);
+	boxorigin[2] += 100.0;
+
+	if (ticks >= 5.0 && phase == PUNCH_PHASE_UPGRADING)
 	{
-		phase = 1;
-		CPrintToChat(client, "Weapon is now packapunched.");
+		TF2_CreateAnnotationToAll(boxorigin, "Upgraded weapon is ready...", 10.0, "coach/coach_attack_here.wav");
+
+		phase = PUNCH_PHASE_WAITING;
+		CPrintToChat(client, "Your weapon is now upgraded, please retrieve it!");
 	}
-	else if (ticks >= 15.0 && phase == 1)
+	else if (ticks >= 15.0 && phase == PUNCH_PHASE_WAITING)
 	{
-		phase = 2;
-		CPrintToChat(client, "You have run out of time and your weapon is now gone.");
+		phase = PUNCH_PHASE_DESTROYING;
+		CPrintToChat(client, "You have run out of time to retrieve your upgraded weapon!");
 	}
 	
 	switch (phase)
 	{
-		case 1:
+		case PUNCH_PHASE_WAITING:
 		{
 			float playerorigin[3];
 			GetClientAbsOrigin(client, playerorigin);
 
-			float boxorigin[3];
-			GetEntPropVector(punch, Prop_Send, "m_vecOrigin", boxorigin);
+			float time = GetGameTime();
+			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
+			{
+				PrintSilentHint(client, "Press 'MEDIC!' near the mystery box to pick up your upgraded weapon.");
+				g_Player[client].delayhint = time + 1.0;
+			}
 
 			if (g_Player[client].interact != -1 && g_Player[client].interact > GetTime() && GetVectorDistance(playerorigin, boxorigin) <= 120.0)
 			{
@@ -7835,7 +7852,7 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 				return Plugin_Stop;
 			}
 		}
-		case 2:
+		case PUNCH_PHASE_DESTROYING:
 		{
 			CompletePackapunch(punch, propweapon);
 			

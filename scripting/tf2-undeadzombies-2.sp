@@ -2284,7 +2284,7 @@ public Action Timer_RoundTimer(Handle timer)
 			if (g_Match.difficulty != -1)
 				strcopy(sDifficulty, sizeof(sDifficulty), g_Difficulty[g_Match.difficulty].name);
 
-			g_Match.hud_timer.SetParams(0.0, 0.3, 2.0, 57, 255, 54, 255);
+			g_Match.hud_timer.SetParams(0.0, 0.0, 2.0, 57, 255, 54, 255);
 
 			if (GameRules_GetProp("m_bInWaitingForPlayers") || GetTeamAliveCount(TEAM_SURVIVORS) < 1)
 			{
