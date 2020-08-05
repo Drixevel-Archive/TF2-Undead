@@ -103,7 +103,6 @@
 /*****************************/
 //Includes
 #include <sourcemod>
-#include <sdkhooks>
 
 #include <misc-sm>
 #include <misc-tf>
@@ -3226,28 +3225,29 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 		class = 9;
 	
 	CBaseNPC npc = new CBaseNPC();
-	npc.Teleport(origin);
+	int entity = npc.GetEntity();
+	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
+
 	g_Zombies[npc.Index].type = special;
 
 	if (g_Match.spawn_robots)
-		npc.SetModel(sRobotModels[class]);
+		SetEntityModel(entity, sRobotModels[class]);
 	else
-		npc.SetModel(sModels[class]);
+		SetEntityModel(entity, sModels[class]);
 
-	npc.Spawn();
-	npc.SetThinkFunction(OnZombieThink);
-	npc.SetOnTraceAttackFunction(OnZombiesTraceAttack);
-	npc.SetOnTakeDamageAliveFunction(OnZombieDamaged);
-	npc.SetOnTakeDamageAlivePostFunction(OnZombieDamagedPost);
+	DispatchSpawn(entity);
+	SDKHook(entity, SDKHook_Think, OnZombieThink);
+	SDKHook(entity, SDKHook_TraceAttack, OnZombiesTraceAttack);
+	SDKHook(entity, SDKHook_OnTakeDamage, OnZombieDamaged);
+	SDKHook(entity, SDKHook_OnTakeDamagePost, OnZombieDamagedPost);
 	
 	int item = -1;
-	if (!g_Match.spawn_robots && (item = npc.EquipItem("head", sZombieAttachments[class])) != -1)
+	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
 	{
 		SetEntityRenderMode(item, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
 	}
 	
-	int entity = npc.GetEntity();
 	//CBaseNPC_HookEventKilled(entity);
 
 	if (g_Match.bomb_heads)
@@ -3272,11 +3272,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
-	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;
+	SetEntPropFloat(entity, Prop_Data, "m_flModelScale", g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0);
 	if (g_Match.mutation == MUTATION_MINIZOMBIES)
-		npc.nSize = 0.8;
-	npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
-	FixZombieCollisions(npc);
+		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
+	SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Data, "m_flModelScale") != -1.0) ? GetEntPropFloat(entity, Prop_Data, "m_flModelScale") : 1.0));
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
@@ -3289,10 +3288,17 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.iMaxHealth = health;
 	npc.iHealth = health;
 	
-	npc.Run();
+	NextBotGroundLocomotion loco = npc.GetLocomotion();
+	loco.Run();
 
 	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
-	animationEntity.PlayAnimation("Stand_MELEE");
+
+	int iSequence = animationEntity.LookupSequence("Stand_MELEE");
+	if (iSequence != -1)
+	{
+		animationEntity.ResetSequence(iSequence);
+		SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
+	}
 
 	g_Zombies[npc.Index].entity = entity;
 	g_Zombies[npc.Index].class = class;
@@ -3319,11 +3325,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
-		npc.nSize = GetRandomFloat(1.0, 1.0);
+		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", GetRandomFloat(1.0, 1.0));
 		if (g_Match.mutation == MUTATION_MINIZOMBIES)
-			npc.nSize = 0.8;
-		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
-		FixZombieCollisions(npc);
+			SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
+		SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Send, "m_flStepSize") != -1.0) ? GetEntPropFloat(entity, Prop_Send, "m_flStepSize") : 1.0));
 
 		int color[3];
 		color[0] = GetRandomInt(255, 255);
@@ -3375,28 +3380,29 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	return npc;
 }
 
-void FixZombieCollisions(CBaseNPC npc)
-{
-	if (npc != INVALID_NPC && npc.nSize != -1.0)
+int EquipZombieItem(int entity, const char[] attachment, const char[] model, const char[] anim = "", int skin = 0)
+{	
+	int iItem = CreateEntityByName("prop_dynamic");
+	DispatchKeyValue(iItem, "model", model);
+	DispatchKeyValueFloat(iItem, "modelscale", GetEntPropFloat(entity, Prop_Send, "m_flModelScale"));
+	DispatchSpawn(iItem);
+	
+	SetEntProp(iItem, Prop_Send, "m_nSkin", skin);
+	SetEntProp(iItem, Prop_Send, "m_fEffects", EF_BONEMERGE|EF_PARENT_ANIMATES);
+	
+	if (strlen(anim) > 0)
 	{
-		int entity = npc.GetEntity();
-
-		float vecMins[3];
-		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
-
-		float vecMaxs[3];
-		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
-		
-		vecMins[0] /= npc.nSize;
-		vecMins[1] /= npc.nSize;
-		vecMins[2] /= npc.nSize;
-
-		vecMaxs[0] *= npc.nSize;
-		vecMaxs[1] *= npc.nSize;
-		vecMaxs[2] *= npc.nSize;
-
-		npc.SetCollisionBounds(vecMins, vecMaxs);
+		SetVariantString(anim);
+		AcceptEntityInput(iItem, "SetAnimation");
 	}
+
+	SetVariantString("!activator");
+	AcceptEntityInput(iItem, "SetParent", entity);
+	
+	SetVariantString(attachment);
+	AcceptEntityInput(iItem, "SetParentAttachmentMaintainOffset"); 
+
+	return iItem;
 }
 
 int GetZombieTypeByName(const char[] name)
@@ -3542,7 +3548,13 @@ public void OnZombieThink(int entity)
 	
 	if (target < 1 || g_Match.pausezombies)
 	{
-		animationEntity.PlayAnimation("Stand_MELEE");
+		int iSequence = animationEntity.LookupSequence("Stand_MELEE");
+		if (iSequence != -1)
+		{
+			animationEntity.ResetSequence(iSequence);
+			SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
+		}
+
 		return;
 	}
 	
@@ -3589,10 +3601,10 @@ public void OnZombieThink(int entity)
 	int sequence_idle = animationEntity.LookupSequence("Stand_MELEE");
 	int sequence_air_walk = animationEntity.LookupSequence("Airwalk_MELEE");
 	int sequence_run = animationEntity.LookupSequence("run_MELEE");
-	Address pModelptr = animationEntity.GetModelPtr();
+//	Address pModelptr = animationEntity.GetModelPtr();
 	
-	int iPitch = animationEntity.LookupPoseParameter(pModelptr, "body_pitch");
-	int iYaw = animationEntity.LookupPoseParameter(pModelptr, "body_yaw");
+	int iPitch = animationEntity.LookupPoseParameter("body_pitch");
+	int iYaw = animationEntity.LookupPoseParameter("body_yaw");
 
 	float vecNPCCenter[3];	
 	animationEntity.WorldSpaceCenter(vecNPCCenter);
@@ -3612,13 +3624,13 @@ public void OnZombieThink(int entity)
 	float flYaw = animationEntity.GetPoseParameter(iYaw);
 	
 	vecAng[0] = UTIL_Clamp(UTIL_AngleNormalize(vecAng[0]), -44.0, 89.0);
-	animationEntity.SetPoseParameter(pModelptr, iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
+	animationEntity.SetPoseParameter(iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
 	
 	vecAng[1] = UTIL_Clamp(-UTIL_AngleNormalize(UTIL_AngleDiff(UTIL_AngleNormalize(vecAng[1]), UTIL_AngleNormalize(vecNPCAng[1] + 180.0))), -44.0,  44.0);
-	animationEntity.SetPoseParameter(pModelptr, iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
+	animationEntity.SetPoseParameter(iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
 	
-	int iMoveX = animationEntity.LookupPoseParameter(pModelptr, "move_x");
-	int iMoveY = animationEntity.LookupPoseParameter(pModelptr, "move_y");
+	int iMoveX = animationEntity.LookupPoseParameter("move_x");
+	int iMoveY = animationEntity.LookupPoseParameter("move_y");
 	
 	if (iMoveX < 0 || iMoveY < 0)
 		return;
@@ -3638,8 +3650,10 @@ public void OnZombieThink(int entity)
 				animationEntity.ResetSequence(sequence_run);
 		}
 
+		CBaseEntity ent = CBaseEntity(entity);
+
 		float vecForward[3]; float vecRight[3]; float vecUp[3];
-		npc.GetVectors(vecForward, vecRight, vecUp);
+		ent.GetVectors(vecForward, vecRight, vecUp);
 
 		float vecMotion[3];
 		loco.GetGroundMotionVector(vecMotion);
@@ -3647,8 +3661,8 @@ public void OnZombieThink(int entity)
 		float newMoveX = (vecForward[1] * vecMotion[1]) + (vecForward[0] * vecMotion[0]) +  (vecForward[2] * vecMotion[2]);
 		float newMoveY = (vecRight[1] * vecMotion[1]) + (vecRight[0] * vecMotion[0]) + (vecRight[2] * vecMotion[2]);
 		
-		animationEntity.SetPoseParameter(pModelptr, iMoveX, newMoveX);
-		animationEntity.SetPoseParameter(pModelptr, iMoveY, newMoveY);
+		animationEntity.SetPoseParameter(iMoveX, newMoveX);
+		animationEntity.SetPoseParameter(iMoveY, newMoveY);
 
 		//PrintToChatAll("step");
 		//EmitGameSoundToAll("Default.StepLeft", entity);
@@ -3816,9 +3830,9 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	
 	float vSoundPos[3], vFootAngles[3];
 	if (iEvent == 53)
-		anim.GetAttachment(anim.FindAttachment("lfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
 	else if (iEvent == 52)
-		anim.GetAttachment(anim.FindAttachment("rfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
 	
 	TR_TraceRayFilter(vSoundPos, view_as<float>( { 90.0, 90.0, 90.0 } ), MASK_NPCSOLID|MASK_PLAYERSOLID, RayType_Infinite, FilterBaseActorsAndData, pThis);
 	char material[PLATFORM_MAX_PATH]; TR_GetSurfaceName(null, material, PLATFORM_MAX_PATH);
@@ -6629,8 +6643,6 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
-		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
-
 		if (!noragdoll)
 		{
 			char sModel[PLATFORM_MAX_PATH];
@@ -7221,8 +7233,8 @@ void PlayZombieSound(int entity)
 	float size;
 	if (entity > MaxClients)
 	{
-		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
-		size = npc.nSize;
+		//CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
+		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
 	}
 	else
 		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");

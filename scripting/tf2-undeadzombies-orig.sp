@@ -103,6 +103,7 @@
 /*****************************/
 //Includes
 #include <sourcemod>
+#include <sdkhooks>
 
 #include <misc-sm>
 #include <misc-tf>
@@ -1916,6 +1917,9 @@ public void OnMapStart()
 	PrecacheSound("player/crit_received1.wav");
 	PrecacheSound("player/crit_hit.wav");
 
+	//Packapunch
+	PrecacheSound("coach/coach_attack_here.wav");
+
 	//Blood Particles
 	for (int i = 0; i < 5; i++)
 		PrecacheParticle(sBloodParticles[i]);
@@ -3222,29 +3226,28 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 		class = 9;
 	
 	CBaseNPC npc = new CBaseNPC();
-	int entity = npc.GetEntity();
-	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
-
+	npc.Teleport(origin);
 	g_Zombies[npc.Index].type = special;
 
 	if (g_Match.spawn_robots)
-		SetEntityModel(entity, sRobotModels[class]);
+		npc.SetModel(sRobotModels[class]);
 	else
-		SetEntityModel(entity, sModels[class]);
+		npc.SetModel(sModels[class]);
 
-	DispatchSpawn(entity);
-	SDKHook(entity, SDKHook_Think, OnZombieThink);
-	SDKHook(entity, SDKHook_TraceAttack, OnZombiesTraceAttack);
-	SDKHook(entity, SDKHook_OnTakeDamage, OnZombieDamaged);
-	SDKHook(entity, SDKHook_OnTakeDamagePost, OnZombieDamagedPost);
+	npc.Spawn();
+	npc.SetThinkFunction(OnZombieThink);
+	npc.SetOnTraceAttackFunction(OnZombiesTraceAttack);
+	npc.SetOnTakeDamageAliveFunction(OnZombieDamaged);
+	npc.SetOnTakeDamageAlivePostFunction(OnZombieDamagedPost);
 	
 	int item = -1;
-	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
+	if (!g_Match.spawn_robots && (item = npc.EquipItem("head", sZombieAttachments[class])) != -1)
 	{
 		SetEntityRenderMode(item, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
 	}
 	
+	int entity = npc.GetEntity();
 	//CBaseNPC_HookEventKilled(entity);
 
 	if (g_Match.bomb_heads)
@@ -3269,10 +3272,11 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
-	SetEntPropFloat(entity, Prop_Data, "m_flModelScale", g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0);
+	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;
 	if (g_Match.mutation == MUTATION_MINIZOMBIES)
-		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-	SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Data, "m_flModelScale") != -1.0) ? GetEntPropFloat(entity, Prop_Data, "m_flModelScale") : 1.0));
+		npc.nSize = 0.8;
+	npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+	FixZombieCollisions(npc);
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
@@ -3285,17 +3289,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.iMaxHealth = health;
 	npc.iHealth = health;
 	
-	NextBotGroundLocomotion loco = npc.GetLocomotion();
-	loco.Run();
+	npc.Run();
 
 	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
-
-	int iSequence = animationEntity.LookupSequence("Stand_MELEE");
-	if (iSequence != -1)
-	{
-		animationEntity.ResetSequence(iSequence);
-		SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
-	}
+	animationEntity.PlayAnimation("Stand_MELEE");
 
 	g_Zombies[npc.Index].entity = entity;
 	g_Zombies[npc.Index].class = class;
@@ -3322,10 +3319,11 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
 	{
-		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", GetRandomFloat(1.0, 1.0));
+		npc.nSize = GetRandomFloat(1.0, 1.0);
 		if (g_Match.mutation == MUTATION_MINIZOMBIES)
-			SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-		SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Send, "m_flStepSize") != -1.0) ? GetEntPropFloat(entity, Prop_Send, "m_flStepSize") : 1.0));
+			npc.nSize = 0.8;
+		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+		FixZombieCollisions(npc);
 
 		int color[3];
 		color[0] = GetRandomInt(255, 255);
@@ -3377,29 +3375,28 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	return npc;
 }
 
-int EquipZombieItem(int entity, const char[] attachment, const char[] model, const char[] anim = "", int skin = 0)
-{	
-	int iItem = CreateEntityByName("prop_dynamic");
-	DispatchKeyValue(iItem, "model", model);
-	DispatchKeyValueFloat(iItem, "modelscale", GetEntPropFloat(entity, Prop_Send, "m_flModelScale"));
-	DispatchSpawn(iItem);
-	
-	SetEntProp(iItem, Prop_Send, "m_nSkin", skin);
-	SetEntProp(iItem, Prop_Send, "m_fEffects", EF_BONEMERGE|EF_PARENT_ANIMATES);
-	
-	if (strlen(anim) > 0)
+void FixZombieCollisions(CBaseNPC npc)
+{
+	if (npc != INVALID_NPC && npc.nSize != -1.0)
 	{
-		SetVariantString(anim);
-		AcceptEntityInput(iItem, "SetAnimation");
+		int entity = npc.GetEntity();
+
+		float vecMins[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
+
+		float vecMaxs[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
+		
+		vecMins[0] /= npc.nSize;
+		vecMins[1] /= npc.nSize;
+		vecMins[2] /= npc.nSize;
+
+		vecMaxs[0] *= npc.nSize;
+		vecMaxs[1] *= npc.nSize;
+		vecMaxs[2] *= npc.nSize;
+
+		npc.SetCollisionBounds(vecMins, vecMaxs);
 	}
-
-	SetVariantString("!activator");
-	AcceptEntityInput(iItem, "SetParent", entity);
-	
-	SetVariantString(attachment);
-	AcceptEntityInput(iItem, "SetParentAttachmentMaintainOffset"); 
-
-	return iItem;
 }
 
 int GetZombieTypeByName(const char[] name)
@@ -3545,13 +3542,7 @@ public void OnZombieThink(int entity)
 	
 	if (target < 1 || g_Match.pausezombies)
 	{
-		int iSequence = animationEntity.LookupSequence("Stand_MELEE");
-		if (iSequence != -1)
-		{
-			animationEntity.ResetSequence(iSequence);
-			SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
-		}
-
+		animationEntity.PlayAnimation("Stand_MELEE");
 		return;
 	}
 	
@@ -3598,10 +3589,10 @@ public void OnZombieThink(int entity)
 	int sequence_idle = animationEntity.LookupSequence("Stand_MELEE");
 	int sequence_air_walk = animationEntity.LookupSequence("Airwalk_MELEE");
 	int sequence_run = animationEntity.LookupSequence("run_MELEE");
-//	Address pModelptr = animationEntity.GetModelPtr();
+	Address pModelptr = animationEntity.GetModelPtr();
 	
-	int iPitch = animationEntity.LookupPoseParameter("body_pitch");
-	int iYaw = animationEntity.LookupPoseParameter("body_yaw");
+	int iPitch = animationEntity.LookupPoseParameter(pModelptr, "body_pitch");
+	int iYaw = animationEntity.LookupPoseParameter(pModelptr, "body_yaw");
 
 	float vecNPCCenter[3];	
 	animationEntity.WorldSpaceCenter(vecNPCCenter);
@@ -3621,13 +3612,13 @@ public void OnZombieThink(int entity)
 	float flYaw = animationEntity.GetPoseParameter(iYaw);
 	
 	vecAng[0] = UTIL_Clamp(UTIL_AngleNormalize(vecAng[0]), -44.0, 89.0);
-	animationEntity.SetPoseParameter(iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
+	animationEntity.SetPoseParameter(pModelptr, iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
 	
 	vecAng[1] = UTIL_Clamp(-UTIL_AngleNormalize(UTIL_AngleDiff(UTIL_AngleNormalize(vecAng[1]), UTIL_AngleNormalize(vecNPCAng[1] + 180.0))), -44.0,  44.0);
-	animationEntity.SetPoseParameter(iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
+	animationEntity.SetPoseParameter(pModelptr, iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
 	
-	int iMoveX = animationEntity.LookupPoseParameter("move_x");
-	int iMoveY = animationEntity.LookupPoseParameter("move_y");
+	int iMoveX = animationEntity.LookupPoseParameter(pModelptr, "move_x");
+	int iMoveY = animationEntity.LookupPoseParameter(pModelptr, "move_y");
 	
 	if (iMoveX < 0 || iMoveY < 0)
 		return;
@@ -3647,10 +3638,8 @@ public void OnZombieThink(int entity)
 				animationEntity.ResetSequence(sequence_run);
 		}
 
-		CBaseEntity ent = CBaseEntity(entity);
-
 		float vecForward[3]; float vecRight[3]; float vecUp[3];
-		ent.GetVectors(vecForward, vecRight, vecUp);
+		npc.GetVectors(vecForward, vecRight, vecUp);
 
 		float vecMotion[3];
 		loco.GetGroundMotionVector(vecMotion);
@@ -3658,8 +3647,8 @@ public void OnZombieThink(int entity)
 		float newMoveX = (vecForward[1] * vecMotion[1]) + (vecForward[0] * vecMotion[0]) +  (vecForward[2] * vecMotion[2]);
 		float newMoveY = (vecRight[1] * vecMotion[1]) + (vecRight[0] * vecMotion[0]) + (vecRight[2] * vecMotion[2]);
 		
-		animationEntity.SetPoseParameter(iMoveX, newMoveX);
-		animationEntity.SetPoseParameter(iMoveY, newMoveY);
+		animationEntity.SetPoseParameter(pModelptr, iMoveX, newMoveX);
+		animationEntity.SetPoseParameter(pModelptr, iMoveY, newMoveY);
 
 		//PrintToChatAll("step");
 		//EmitGameSoundToAll("Default.StepLeft", entity);
@@ -3827,9 +3816,9 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	
 	float vSoundPos[3], vFootAngles[3];
 	if (iEvent == 53)
-		anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.FindAttachment("lfoot"), vSoundPos, vFootAngles);
 	else if (iEvent == 52)
-		anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.FindAttachment("rfoot"), vSoundPos, vFootAngles);
 	
 	TR_TraceRayFilter(vSoundPos, view_as<float>( { 90.0, 90.0, 90.0 } ), MASK_NPCSOLID|MASK_PLAYERSOLID, RayType_Infinite, FilterBaseActorsAndData, pThis);
 	char material[PLATFORM_MAX_PATH]; TR_GetSurfaceName(null, material, PLATFORM_MAX_PATH);
@@ -6640,6 +6629,8 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
+		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+
 		if (!noragdoll)
 		{
 			char sModel[PLATFORM_MAX_PATH];
@@ -7230,8 +7221,8 @@ void PlayZombieSound(int entity)
 	float size;
 	if (entity > MaxClients)
 	{
-		//CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
-		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
+		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
+		size = npc.nSize;
 	}
 	else
 		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
@@ -7684,6 +7675,10 @@ public Action Command_ReloadConfigs(int client, int ars)
 
 int punch_weapon;
 
+#define PUNCH_PHASE_UPGRADING 0
+#define PUNCH_PHASE_WAITING 1
+#define PUNCH_PHASE_DESTROYING 2
+
 void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 {
 	if (!IsValidEntity(weapon) || !IsValidEntity(punch))
@@ -7734,7 +7729,7 @@ void StartPackapunchEvent(int client, int punch = -1, int weapon = -1)
 	pack.WriteCell(punch);
 	pack.WriteCell(propweapon);
 	pack.WriteCell(0.0);
-	pack.WriteCell(0);
+	pack.WriteCell(PUNCH_PHASE_UPGRADING);
 }
 
 stock float[] GetAbsOrigin(int client)
@@ -7814,26 +7809,36 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 
 	ticks += 0.1;
 
-	if (ticks >= 5.0 && phase == 0)
+	float boxorigin[3];
+	GetEntPropVector(punch, Prop_Send, "m_vecOrigin", boxorigin);
+	boxorigin[2] += 100.0;
+
+	if (ticks >= 5.0 && phase == PUNCH_PHASE_UPGRADING)
 	{
-		phase = 1;
-		CPrintToChat(client, "Weapon is now packapunched.");
+		TF2_CreateAnnotationToAll(boxorigin, "Upgraded weapon is ready...", 10.0, "coach/coach_attack_here.wav");
+
+		phase = PUNCH_PHASE_WAITING;
+		CPrintToChat(client, "Your weapon is now upgraded, please retrieve it!");
 	}
-	else if (ticks >= 15.0 && phase == 1)
+	else if (ticks >= 15.0 && phase == PUNCH_PHASE_WAITING)
 	{
-		phase = 2;
-		CPrintToChat(client, "You have run out of time and your weapon is now gone.");
+		phase = PUNCH_PHASE_DESTROYING;
+		CPrintToChat(client, "You have run out of time to retrieve your upgraded weapon!");
 	}
 	
 	switch (phase)
 	{
-		case 1:
+		case PUNCH_PHASE_WAITING:
 		{
 			float playerorigin[3];
 			GetClientAbsOrigin(client, playerorigin);
 
-			float boxorigin[3];
-			GetEntPropVector(punch, Prop_Send, "m_vecOrigin", boxorigin);
+			float time = GetGameTime();
+			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
+			{
+				PrintSilentHint(client, "Press 'MEDIC!' near the mystery box to pick up your upgraded weapon.");
+				g_Player[client].delayhint = time + 1.0;
+			}
 
 			if (g_Player[client].interact != -1 && g_Player[client].interact > GetTime() && GetVectorDistance(playerorigin, boxorigin) <= 120.0)
 			{
@@ -7847,7 +7852,7 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 				return Plugin_Stop;
 			}
 		}
-		case 2:
+		case PUNCH_PHASE_DESTROYING:
 		{
 			CompletePackapunch(punch, propweapon);
 			
