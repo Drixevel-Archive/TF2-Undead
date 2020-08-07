@@ -3275,7 +3275,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	SetEntPropFloat(entity, Prop_Data, "m_flModelScale", g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0);
 	if (g_Match.mutation == MUTATION_MINIZOMBIES)
 		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-	SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Data, "m_flModelScale") != -1.0) ? GetEntPropFloat(entity, Prop_Data, "m_flModelScale") : 1.0));
+	//SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Data, "m_flModelScale") != -1.0) ? GetEntPropFloat(entity, Prop_Data, "m_flModelScale") : 1.0));
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
@@ -3328,7 +3328,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", GetRandomFloat(1.0, 1.0));
 		if (g_Match.mutation == MUTATION_MINIZOMBIES)
 			SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-		SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Send, "m_flStepSize") != -1.0) ? GetEntPropFloat(entity, Prop_Send, "m_flStepSize") : 1.0));
+		//SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Send, "m_flStepSize") != -1.0) ? GetEntPropFloat(entity, Prop_Send, "m_flStepSize") : 1.0));
 
 		int color[3];
 		color[0] = GetRandomInt(255, 255);
@@ -5769,6 +5769,9 @@ void OnPlankTick(int entity)
 			continue;
 
 		CBaseNPC npc = TheNPCs.FindNPCByEntIndex(zombie);
+
+		if (npc == INVALID_NPC)
+			continue;
 
 		if (health <= 0 && disabled || g_Zombies[npc.Index].insidemap)
 		{
