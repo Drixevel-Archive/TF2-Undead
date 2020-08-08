@@ -44,6 +44,8 @@
 
 #define MAX_PERKS 4
 
+#define DIFFICULTY_DEFAULT "Medium"
+
 #define ZOMBIE_DEFAULT "Common"
 
 #define ZOMBIE_WAVE_TIMER_MIN 10.0
@@ -277,14 +279,14 @@ enum struct Match
 
 	void Init()
 	{
-		this.difficulty = GetDifficultyByName("Medium");
+		this.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
 		this.roundtime = 0;
 		this.roundtimer = null;
 		this.roundphase = PHASE_HIBERNATION;
 		this.hud_timer = null;
 		this.round = 0;
 		
-		this.pausetimer = false;
+		this.pausetimer = true;
 		this.pausezombies = false;
 
 		this.secret_door_unlocked = false;
@@ -299,7 +301,7 @@ enum struct Match
 
 	void Reset()
 	{
-		this.difficulty = GetDifficultyByName("Medium");
+		this.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
 		this.roundtime = 0;
 		StopTimer(this.roundtimer);
 		this.roundphase = PHASE_HIBERNATION;
@@ -952,7 +954,7 @@ enum struct Player
 		}
 		else if (StrEqual(name, "juggernog", false))
 		{
-			SetEntityHealth(this.client, 150);
+			SetEntityHealth(this.client, 200);
 		}
 		else if (StrEqual(name, "staminup", false))
 		{
@@ -1120,7 +1122,7 @@ public Action Timer_Regen(Handle timer, any data)
 	g_Player[victim].regentimer = null;
 
 	if (IsClientInGame(victim) && IsPlayerAlive(victim))
-		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? 300 : 150);
+		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? 300 : 200);
 }
 
 public Action Timer_SetOnFire(Handle timer, any data)
@@ -2209,7 +2211,7 @@ void InitLobby()
 	TF2_RespawnAll();
 	FindConVar("mp_disable_respawn_times").IntValue = 0;
 	
-	g_Match.difficulty = GetDifficultyByName("Medium");
+	g_Match.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
 	g_Match.roundtime = LOBBY_TIME;
 	g_Match.round = 1;
 	g_Match.roundphase = PHASE_STARTING;
@@ -7101,7 +7103,7 @@ float CalculateSpeed(int special)
 int CalculateHealth(int entity)
 {
 	if (entity > 0 && entity <= MaxClients && GetClientTeam(entity) != TEAM_ZOMBIES)
-		return g_Player[entity].HasPerk("juggernog") ? 300 : 150;
+		return g_Player[entity].HasPerk("juggernog") ? 300 : 200;
 
 	CBaseNPC npc;
 	if (entity > MaxClients)
@@ -7119,18 +7121,18 @@ int CalculateHealth(int entity)
 		int class = (entity > 0 && entity <= MaxClients) ? view_as<int>(TF2_GetPlayerClass(entity)) : g_Zombies[npc.Index].class;
 
 		if (class == view_as<int>(TFClass_Heavy))
-			basehealth = 250;
+			basehealth = 300;
 		else if (class == view_as<int>(TFClass_Soldier))
-			basehealth = 200;
+			basehealth = 250;
 		else
-			basehealth = 150;
+			basehealth = 200;
 	}
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
 	int health = (basehealth + (g_Match.round * 2));
 
 	if (g_Match.mutation == MUTATION_MOREHEALTH)
-		health += 150;
+		health += 100;
 	
 	//PrintToDrixevel("Zombie Health: %i", health);
 	return health;
