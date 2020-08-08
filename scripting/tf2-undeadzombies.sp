@@ -58,7 +58,7 @@
 #define ZOMBIE_DAMAGE_MIN 15.0
 #define ZOMBIE_DAMAGE_MAX 25.0
 
-#define ZOMBIE_BASE_SPEED 150.0
+#define ZOMBIE_BASE_SPEED 75.0
 
 #define INTERACT_SUCCESS 0
 #define INTERACT_INSUFFICIENTFUNDS 1
@@ -1215,7 +1215,7 @@ enum struct Zombies
 			if (IsClientInGame(i))
 				clients[total++] = i;
 		
-		if (!total)
+		if (total == 0)
 			return;
 		
 		int channel;
@@ -1228,12 +1228,6 @@ enum struct Zombies
 		{
 			PrecacheSound(sample);
 			EmitSound(clients, total, sample, this.entity, channel, level, _, volume, pitch, .origin = vPosition);
-			
-			//PrintToServer("%i PlayStepSound(\"%s\")", this.entity, sound);
-		}
-		else
-		{
-			//PrintToServer("%i PlayStepSound(\"%s\") FAILED", this.entity, sound);
 		}
 	}
 }
@@ -1478,10 +1472,6 @@ public void OnPluginStart()
 	RegAdminCmd("sm_setanglesnear", Command_SetAnglesNear, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_synclobby", Command_SyncLobby, ADMFLAG_GENERIC);
-
-	RegAdminCmd("sm_debugweapons", Command_DebugWeapons, ADMFLAG_ROOT);
-	RegAdminCmd("sm_nextweapon", Command_NextWeapons, ADMFLAG_ROOT);
-	RegAdminCmd("sm_stopdebugweapons", Command_StopDebugWeapons, ADMFLAG_ROOT);
 
 	RegAdminCmd("sm_setzombietype", Command_SetZombieType, ADMFLAG_ROOT);
 
@@ -2228,6 +2218,11 @@ void InitLobby()
 	g_Match.roundtimer = CreateTimer(1.0, Timer_RoundTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
 	CreateTF2Timer(LOBBY_TIME);
+
+	if (g_Match.pausetimer)
+		PauseTF2Timer();
+	else
+		UnpauseTF2Timer();
 
 	for (int i = 1; i <= MaxClients; i++)
 		if (IsClientInGame(i))
@@ -3585,7 +3580,7 @@ public void OnZombieThink(int entity)
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			g_Player[target].SetOnFire();
-		else if (type == GetZombieTypeByName("Spikey Bois"))
+		else if (type == GetZombieTypeByName("Vampire Spies"))
 			g_Player[target].Bleed();
 		else if (type == GetZombieTypeByName("Zombified Saxton Hale"))
 			PushPlayerFromPoint(target, vecNPCPos, 3000.0);
@@ -3601,8 +3596,7 @@ public void OnZombieThink(int entity)
 	int sequence_idle = animationEntity.LookupSequence("Stand_MELEE");
 	int sequence_air_walk = animationEntity.LookupSequence("Airwalk_MELEE");
 	int sequence_run = animationEntity.LookupSequence("run_MELEE");
-//	Address pModelptr = animationEntity.GetModelPtr();
-	
+
 	int iPitch = animationEntity.LookupPoseParameter("body_pitch");
 	int iYaw = animationEntity.LookupPoseParameter("body_yaw");
 
@@ -4244,7 +4238,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 
 		if (type == GetZombieTypeByName("Ignition Pyro"))
 			g_Player[victim].SetOnFire();
-		else if (type == GetZombieTypeByName("Spikey Bois"))
+		else if (type == GetZombieTypeByName("Vampire Spies"))
 			g_Player[victim].Bleed();
 		else if (type == GetZombieTypeByName("Zombified Saxton Hale"))
 		{
@@ -7083,59 +7077,9 @@ float[] PredictSubjectPosition(CBaseNPC npc, int subject)
 	return pathTarget;
 }
 
-public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[PLATFORM_MAX_PATH],
-	  int &entity, int &channel, float &volume, int &level, int &pitch, int &flags,
-	  char soundEntry[PLATFORM_MAX_PATH], int &seed)
+public Action OnSoundPlay(int clients[MAXPLAYERS], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags, char soundEntry[PLATFORM_MAX_PATH], int &seed)
 {
-	//PrintToChatAll(sample);
-}
 
-int debugweapon = -1;
-int debugcurrent;
-
-public Action Command_DebugWeapons(int client, int args)
-{
-	if (IsValidEntity(debugweapon))
-		AcceptEntityInput(debugweapon, "Kill");
-		
-	debugweapon = CreateEntityByName("prop_dynamic");
-	debugcurrent = 0;
-
-	char sModel[PLATFORM_MAX_PATH];
-	TF2Items_GetItemKeyString(g_CustomWeapons[debugcurrent].name, "worldmodel", sModel, sizeof(sModel));
-
-	DispatchKeyValueVector(debugweapon, "origin", view_as<float>({1105.0, 71.0, 75.0}));
-	DispatchKeyValue(debugweapon, "model", sModel);
-	DispatchSpawn(debugweapon);
-
-	PrintToChat(client, "Weapon %i: %s", debugcurrent, g_CustomWeapons[debugcurrent].name);
-
-	return Plugin_Handled;
-}
-
-public Action Command_NextWeapons(int client, int args)
-{
-	debugcurrent++;
-
-	if (debugcurrent > g_TotalCustomWeapons)
-		debugcurrent = 0;
-	
-	char sModel[PLATFORM_MAX_PATH];
-	TF2Items_GetItemKeyString(g_CustomWeapons[debugcurrent].name, "worldmodel", sModel, sizeof(sModel));
-
-	SetEntityModel(debugweapon, sModel);
-
-	PrintToChat(client, "Weapon %i: %s", debugcurrent, g_CustomWeapons[debugcurrent].name);
-
-	return Plugin_Handled;
-}
-
-public Action Command_StopDebugWeapons(int client, int args)
-{
-	if (IsValidEntity(debugweapon))
-		AcceptEntityInput(debugweapon, "Kill");
-	
-	return Plugin_Handled;
 }
 
 float CalculateSpeed(int special)
@@ -7149,7 +7093,8 @@ float CalculateSpeed(int special)
 
 	if (g_Match.mutation == MUTATION_LIGHTNINGROUND)
 		speed *= 1.5;
-		
+	
+	//PrintToDrixevel("Zombie Speed: %.2f", speed);
 	return speed;
 }
 
@@ -7187,6 +7132,7 @@ int CalculateHealth(int entity)
 	if (g_Match.mutation == MUTATION_MOREHEALTH)
 		health += 150;
 	
+	//PrintToDrixevel("Zombie Health: %i", health);
 	return health;
 }
 
@@ -7215,6 +7161,7 @@ float CalculateDamage(int special)
 	if (g_Match.mutation == MUTATION_DAMAGEMULTIPLIER)
 		damage *= 1.50;
 	
+	//PrintToDrixevel("Zombie Damage: %.2f", damage);
 	return damage;
 }
 
@@ -7233,14 +7180,7 @@ float GetZombieSoundDuration(int entity)
 
 void PlayZombieSound(int entity)
 {
-	float size;
-	if (entity > MaxClients)
-	{
-		//CBaseNPC npc = TheNPCs.FindNPCByEntIndex(entity);
-		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
-	}
-	else
-		size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
+	float size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
 
 	char sSound[PLATFORM_MAX_PATH];
 	if (size > 1.0)
