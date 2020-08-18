@@ -56,11 +56,11 @@
 #define MAX_PARTICLE_NAME_LENGTH 32
 #define MAX_COMMAND_NAME_LENGTH 255
 
-// #define EF_BONEMERGE	(1 << 0)
-// #define EF_BONEMERGE_FASTCULL	(1 << 7)
-// #define EF_PARENT_ANIMATES	(1 << 9)
-// #define EF_NOSHADOW		16
-// #define EF_NOINTERP		8
+#define EF_BONEMERGE	(1 << 0)
+#define EF_BONEMERGE_FASTCULL	(1 << 7)
+#define EF_PARENT_ANIMATES	(1 << 9)
+#define EF_NOSHADOW		16
+#define EF_NOINTERP		8
 
 #define FFADE_IN	0x0001			// Just here so we don't pass 0 into the function
 #define FFADE_OUT	0x0002			// Fade out (not in)

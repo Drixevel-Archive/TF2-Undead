@@ -36,6 +36,9 @@
 #define LOBBY_TIME 30
 #define MAX_POINTS 100000
 
+#define BASE_HEALTH 200
+#define JUGGERNOG_HEALTH 300
+
 #define PLANK_HEALTH 400
 #define PLANK_COOLDOWN 30.0
 
@@ -44,9 +47,8 @@
 
 #define MAX_PERKS 4
 
-#define DIFFICULTY_DEFAULT "Medium"
-
-#define ZOMBIE_DEFAULT "Common"
+#define DEFAULT_DIFFICULTY "Medium"
+#define DEFAULT_ZOMBIE "Common"
 
 #define ZOMBIE_WAVE_TIMER_MIN 10.0
 #define ZOMBIE_WAVE_TIMER_MAX 15.0
@@ -105,6 +107,8 @@
 /*****************************/
 //Includes
 #include <sourcemod>
+#include <sdktools>
+#include <sdkhooks>
 
 #include <misc-sm>
 #include <misc-tf>
@@ -128,7 +132,10 @@ ConVar convar_BloodFx;
 bool g_Late;
 int g_GlowSprite;
 
+bool g_JustConnected[MAXPLAYERS + 1];
+
 Database g_Database;
+
 int g_GlobalTarget = -1;
 
 ArrayList statistics;
@@ -279,14 +286,14 @@ enum struct Match
 
 	void Init()
 	{
-		this.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
+		this.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
 		this.roundtime = 0;
 		this.roundtimer = null;
 		this.roundphase = PHASE_HIBERNATION;
 		this.hud_timer = null;
 		this.round = 0;
 		
-		this.pausetimer = true;
+		this.pausetimer = false;
 		this.pausezombies = false;
 
 		this.secret_door_unlocked = false;
@@ -296,12 +303,12 @@ enum struct Match
 		this.powerups_cooldown = -1;
 
 		this.mutation = MUTATION_NONE;
-		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		this.mutation_special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 	}
 
 	void Reset()
 	{
-		this.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
+		this.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
 		this.roundtime = 0;
 		StopTimer(this.roundtimer);
 		this.roundphase = PHASE_HIBERNATION;
@@ -318,7 +325,7 @@ enum struct Match
 		this.powerups_cooldown = -1;
 
 		this.mutation = MUTATION_NONE;
-		this.mutation_special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		this.mutation_special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 
 		int entity = -1;
 		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
@@ -528,7 +535,7 @@ enum struct Player
 		this.zombiekills = 0;
 
 		this.sounds = -1.0;
-		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
 		this.insidemap = false;
 		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
@@ -577,7 +584,7 @@ enum struct Player
 		this.zombiekills = 0;
 
 		this.sounds = -1.0;
-		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
 		this.insidemap = false;
 		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
@@ -858,7 +865,7 @@ enum struct Player
 		}
 		else if (StrEqual(name, "juggernog", false))
 		{
-			SetEntityHealth(this.client, 300);
+			SetEntityHealth(this.client, JUGGERNOG_HEALTH);
 		}
 		else if (StrEqual(name, "packapunch", false))
 		{
@@ -954,7 +961,7 @@ enum struct Player
 		}
 		else if (StrEqual(name, "juggernog", false))
 		{
-			SetEntityHealth(this.client, 200);
+			SetEntityHealth(this.client, BASE_HEALTH);
 		}
 		else if (StrEqual(name, "staminup", false))
 		{
@@ -1122,7 +1129,7 @@ public Action Timer_Regen(Handle timer, any data)
 	g_Player[victim].regentimer = null;
 
 	if (IsClientInGame(victim) && IsPlayerAlive(victim))
-		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? 300 : 200);
+		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? JUGGERNOG_HEALTH : BASE_HEALTH);
 }
 
 public Action Timer_SetOnFire(Handle timer, any data)
@@ -1191,7 +1198,7 @@ enum struct Zombies
 	{
 		this.entity = -1;
 		this.class = -1;
-		this.type = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
 		this.speed = 0.0;
 		this.lastattack = -1.0;
 		this.target = -1;
@@ -1675,21 +1682,13 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 public Action OnInfoTargetFire(const char[] output, int caller, int activator, float delay)
 {
 	if (StrEqual(output, "FireUser1", false))
-	{
 		HandleFireUser(caller, TARGET_ENABLE);
-	}
 	else if (StrEqual(output, "FireUser2", false))
-	{
 		HandleFireUser(caller, TARGET_DISABLE);
-	}
 	else if (StrEqual(output, "FireUser3", false))
-	{
 		HandleFireUser(caller, TARGET_KILL);
-	}
 	else if (StrEqual(output, "FireUser4", false))
-	{
 		HandleFireUser(caller, TARGET_CREATE);
-	}
 }
 
 void HandleFireUser(int caller, int type)
@@ -2211,7 +2210,7 @@ void InitLobby()
 	TF2_RespawnAll();
 	FindConVar("mp_disable_respawn_times").IntValue = 0;
 	
-	g_Match.difficulty = GetDifficultyByName(DIFFICULTY_DEFAULT);
+	g_Match.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
 	g_Match.roundtime = LOBBY_TIME;
 	g_Match.round = 1;
 	g_Match.roundphase = PHASE_STARTING;
@@ -2714,7 +2713,7 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 				
 				g_Player[attacker].AddPoints(points);
 
-				if (g_Player[client].type == GetZombieTypeByName(ZOMBIE_DEFAULT))
+				if (g_Player[client].type == GetZombieTypeByName(DEFAULT_ZOMBIE))
 					g_Player[attacker].AddStat(STAT_SPECIALS, 1);
 			}
 
@@ -2923,7 +2922,7 @@ void SpawnWave(int amount)
 		return;
 	
 	int total = amount;
-	int special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+	int special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 
 	float origin[3];
 	for (int i = 1; i <= MaxClients; i++)
@@ -2952,9 +2951,9 @@ void SpawnWave(int amount)
 int GetZombieType()
 {
 	if (GetRandomFloat(0.0, 1000.0) < 950.0 && g_Match.mutation != MUTATION_SPECIALSONLY)
-		return GetZombieTypeByName(ZOMBIE_DEFAULT);
+		return GetZombieTypeByName(DEFAULT_ZOMBIE);
 	
-	if (g_Match.mutation == MUTATION_ONESPECIALONLY && g_Match.mutation_special != GetZombieTypeByName(ZOMBIE_DEFAULT))
+	if (g_Match.mutation == MUTATION_ONESPECIALONLY && g_Match.mutation_special != GetZombieTypeByName(DEFAULT_ZOMBIE))
 		return g_Match.mutation_special;
 	
 	int specials[32];
@@ -2968,7 +2967,7 @@ int GetZombieType()
 		specials[total++] = i;
 	}
 
-	return (total == 0) ? GetZombieTypeByName(ZOMBIE_DEFAULT) : specials[GetRandomInt(0, total - 1)];
+	return (total == 0) ? GetZombieTypeByName(DEFAULT_ZOMBIE) : specials[GetRandomInt(0, total - 1)];
 }
 
 int GetRandomZombieSpecial()
@@ -2979,7 +2978,7 @@ int GetRandomZombieSpecial()
 	for (int i = 1; i < g_TotalZombieTypes; i++)
 		specials[total++] = i;
 
-	return (total == 0) ? GetZombieTypeByName(ZOMBIE_DEFAULT) : specials[GetRandomInt(1, total - 2)];
+	return (total == 0) ? GetZombieTypeByName(DEFAULT_ZOMBIE) : specials[GetRandomInt(1, total - 2)];
 }
 
 bool GetRandomSpawn(float origin[3])
@@ -3109,7 +3108,7 @@ CBaseNPC SpawnRandomZombie(int special = -1)
 void ApplySpecialUpdates(int client, int special, float origin[3])
 {
 	if (special == -1)
-		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 	
 	g_Player[client].type = special;
 	g_Player[client].sounds = GetZombieSoundDuration(client);
@@ -3126,7 +3125,7 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 	
 	TF2_SetPlayerClass(client, view_as<TFClassType>(class), false, false);
 
-	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
+	if (special == GetZombieTypeByName(DEFAULT_ZOMBIE))
 	{
 		float size = GetRandomFloat(1.0, 1.0);
 		SetEntPropFloat(client, Prop_Send, "m_flModelScale", size);
@@ -3208,7 +3207,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	}
 
 	if (special == -1)
-		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 	
 	origin[2] += 10.0;
 
@@ -3223,29 +3222,24 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	
 	CBaseNPC npc = new CBaseNPC();
 	int entity = npc.GetEntity();
+
 	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
+	SetEntityModel(entity, g_Match.spawn_robots ? sRobotModels[class] : sModels[class]);
 
 	g_Zombies[npc.Index].type = special;
-
-	if (g_Match.spawn_robots)
-		SetEntityModel(entity, sRobotModels[class]);
-	else
-		SetEntityModel(entity, sModels[class]);
 
 	DispatchSpawn(entity);
 	SDKHook(entity, SDKHook_Think, OnZombieThink);
 	SDKHook(entity, SDKHook_TraceAttack, OnZombiesTraceAttack);
-	SDKHook(entity, SDKHook_OnTakeDamage, OnZombieDamaged);
-	SDKHook(entity, SDKHook_OnTakeDamagePost, OnZombieDamagedPost);
-	
+	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
+	SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnZombieDamagedPost);
+
 	int item = -1;
 	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
 	{
 		SetEntityRenderMode(item, RENDER_TRANSCOLOR);
 		SetEntityRenderColor(item, g_ZombieTypes[special].color[0], g_ZombieTypes[special].color[1], g_ZombieTypes[special].color[2], g_ZombieTypes[special].color[3]);
 	}
-	
-	//CBaseNPC_HookEventKilled(entity);
 
 	if (g_Match.bomb_heads)
 	{
@@ -3269,10 +3263,14 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
-	SetEntPropFloat(entity, Prop_Data, "m_flModelScale", g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0);
-	if (g_Match.mutation == MUTATION_MINIZOMBIES)
-		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-	//SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Data, "m_flModelScale") != -1.0) ? GetEntPropFloat(entity, Prop_Data, "m_flModelScale") : 1.0));
+	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;	
+
+	if (g_Match.mutation == MUTATION_MINIZOMBIES)	
+		npc.nSize = 0.8;
+	
+	npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+
+	FixZombieCollisions(npc);
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
@@ -3285,17 +3283,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	npc.iMaxHealth = health;
 	npc.iHealth = health;
 	
-	NextBotGroundLocomotion loco = npc.GetLocomotion();
-	loco.Run();
+	npc.Run();
 
 	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
-
-	int iSequence = animationEntity.LookupSequence("Stand_MELEE");
-	if (iSequence != -1)
-	{
-		animationEntity.ResetSequence(iSequence);
-		SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
-	}
+	animationEntity.PlayAnimation("Stand_MELEE");
 
 	g_Zombies[npc.Index].entity = entity;
 	g_Zombies[npc.Index].class = class;
@@ -3320,12 +3311,16 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	if (strlen(g_ZombieTypes[special].particle) > 0)
 		AttachParticle(entity, g_ZombieTypes[special].particle, 0.0, "flag");
 	
-	if (special == GetZombieTypeByName(ZOMBIE_DEFAULT))
+	if (special == GetZombieTypeByName(DEFAULT_ZOMBIE))
 	{
-		SetEntPropFloat(entity, Prop_Data, "m_flModelScale", GetRandomFloat(1.0, 1.0));
+		npc.nSize = GetRandomFloat(1.0, 1.0);
+
 		if (g_Match.mutation == MUTATION_MINIZOMBIES)
-			SetEntPropFloat(entity, Prop_Data, "m_flModelScale", 0.8);
-		//SetEntPropFloat(entity, Prop_Send, "m_flStepSize", 18.0 * ((GetEntPropFloat(entity, Prop_Send, "m_flStepSize") != -1.0) ? GetEntPropFloat(entity, Prop_Send, "m_flStepSize") : 1.0));
+			npc.nSize = 0.8;
+		
+		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+
+		FixZombieCollisions(npc);
 
 		int color[3];
 		color[0] = GetRandomInt(255, 255);
@@ -3392,14 +3387,32 @@ int EquipZombieItem(int entity, const char[] attachment, const char[] model, con
 		SetVariantString(anim);
 		AcceptEntityInput(iItem, "SetAnimation");
 	}
-
 	SetVariantString("!activator");
 	AcceptEntityInput(iItem, "SetParent", entity);
 	
 	SetVariantString(attachment);
 	AcceptEntityInput(iItem, "SetParentAttachmentMaintainOffset"); 
-
 	return iItem;
+}
+
+void FixZombieCollisions(CBaseNPC npc)
+{
+	if (npc != INVALID_NPC && npc.nSize != -1.0)
+	{
+		int entity = npc.GetEntity();
+		float vecMins[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
+		float vecMaxs[3];
+		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
+		
+		vecMins[0] /= npc.nSize;
+		vecMins[1] /= npc.nSize;
+		vecMins[2] /= npc.nSize;
+		vecMaxs[0] *= npc.nSize;
+		vecMaxs[1] *= npc.nSize;
+		vecMaxs[2] *= npc.nSize;
+		npc.SetCollisionBounds(vecMins, vecMaxs);
+	}
 }
 
 int GetZombieTypeByName(const char[] name)
@@ -3545,13 +3558,7 @@ public void OnZombieThink(int entity)
 	
 	if (target < 1 || g_Match.pausezombies)
 	{
-		int iSequence = animationEntity.LookupSequence("Stand_MELEE");
-		if (iSequence != -1)
-		{
-			animationEntity.ResetSequence(iSequence);
-			SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
-		}
-
+		animationEntity.PlayAnimation("Stand_MELEE");
 		return;
 	}
 	
@@ -3598,9 +3605,10 @@ public void OnZombieThink(int entity)
 	int sequence_idle = animationEntity.LookupSequence("Stand_MELEE");
 	int sequence_air_walk = animationEntity.LookupSequence("Airwalk_MELEE");
 	int sequence_run = animationEntity.LookupSequence("run_MELEE");
+	Address pModelptr = animationEntity.GetModelPtr();
 
-	int iPitch = animationEntity.LookupPoseParameter("body_pitch");
-	int iYaw = animationEntity.LookupPoseParameter("body_yaw");
+	int iPitch = animationEntity.LookupPoseParameter(pModelptr, "body_pitch");
+	int iYaw = animationEntity.LookupPoseParameter(pModelptr, "body_yaw");
 
 	float vecNPCCenter[3];	
 	animationEntity.WorldSpaceCenter(vecNPCCenter);
@@ -3620,13 +3628,13 @@ public void OnZombieThink(int entity)
 	float flYaw = animationEntity.GetPoseParameter(iYaw);
 	
 	vecAng[0] = UTIL_Clamp(UTIL_AngleNormalize(vecAng[0]), -44.0, 89.0);
-	animationEntity.SetPoseParameter(iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
+	animationEntity.SetPoseParameter(pModelptr, iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
 	
 	vecAng[1] = UTIL_Clamp(-UTIL_AngleNormalize(UTIL_AngleDiff(UTIL_AngleNormalize(vecAng[1]), UTIL_AngleNormalize(vecNPCAng[1] + 180.0))), -44.0,  44.0);
-	animationEntity.SetPoseParameter(iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
+	animationEntity.SetPoseParameter(pModelptr, iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
 	
-	int iMoveX = animationEntity.LookupPoseParameter("move_x");
-	int iMoveY = animationEntity.LookupPoseParameter("move_y");
+	int iMoveX = animationEntity.LookupPoseParameter(pModelptr, "move_x");
+	int iMoveY = animationEntity.LookupPoseParameter(pModelptr, "move_y");
 	
 	if (iMoveX < 0 || iMoveY < 0)
 		return;
@@ -3646,10 +3654,8 @@ public void OnZombieThink(int entity)
 				animationEntity.ResetSequence(sequence_run);
 		}
 
-		CBaseEntity ent = CBaseEntity(entity);
-
 		float vecForward[3]; float vecRight[3]; float vecUp[3];
-		ent.GetVectors(vecForward, vecRight, vecUp);
+		npc.GetVectors(vecForward, vecRight, vecUp);
 
 		float vecMotion[3];
 		loco.GetGroundMotionVector(vecMotion);
@@ -3657,11 +3663,8 @@ public void OnZombieThink(int entity)
 		float newMoveX = (vecForward[1] * vecMotion[1]) + (vecForward[0] * vecMotion[0]) +  (vecForward[2] * vecMotion[2]);
 		float newMoveY = (vecRight[1] * vecMotion[1]) + (vecRight[0] * vecMotion[0]) + (vecRight[2] * vecMotion[2]);
 		
-		animationEntity.SetPoseParameter(iMoveX, newMoveX);
-		animationEntity.SetPoseParameter(iMoveY, newMoveY);
-
-		//PrintToChatAll("step");
-		//EmitGameSoundToAll("Default.StepLeft", entity);
+		animationEntity.SetPoseParameter(pModelptr, iMoveX, newMoveX);
+		animationEntity.SetPoseParameter(pModelptr, iMoveY, newMoveY);
 	}
 	else
 	{
@@ -3814,28 +3817,19 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	CBaseAnimating anim = CBaseAnimating(pThis);
 
 	int iEvent = DHookGetParamObjectPtrVar(hParams, 1, 0, ObjectValueType_Int);
-	//PrintToServer("OnZombieAnimation(%i, %i)", pThis, iEvent);
-	
-	if (iEvent == 54)
-	{
-		//PrintToServer("InfectedAttack::OnPunch");
-		//npc.OnPunch();
-	}
 	
 	char strSound[64];
 	
 	float vSoundPos[3], vFootAngles[3];
 	if (iEvent == 53)
-		anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.FindAttachment("lfoot"), vSoundPos, vFootAngles);
 	else if (iEvent == 52)
-		anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.FindAttachment("rfoot"), vSoundPos, vFootAngles);
 	
 	TR_TraceRayFilter(vSoundPos, view_as<float>( { 90.0, 90.0, 90.0 } ), MASK_NPCSOLID|MASK_PLAYERSOLID, RayType_Infinite, FilterBaseActorsAndData, pThis);
 	char material[PLATFORM_MAX_PATH]; TR_GetSurfaceName(null, material, PLATFORM_MAX_PATH);
 	
 	Format(strSound, sizeof(strSound), "%s.%s", GetStepSoundForMaterial(material) , iEvent == 53 ? "StepLeft" : "StepRight");
-	
-	//PrintToServer("Step on %s", material);
 	
 	g_Zombies[npc.Index].PlayStepSound(strSound, vSoundPos);
 
@@ -3927,6 +3921,29 @@ public Action Command_StartMatch(int client, int args)
 
 public void TF2_OnPlayerSpawn(int client, int team, int class)
 {
+	if (g_JustConnected[client])
+	{
+		g_JustConnected[client] = false;
+		OpenMainMenu(client);
+	}
+
+	int spawns[2048];
+	int totalspawns;
+
+	int entity = -1;
+	while ((entity = FindEntityByClassname(entity, "info_player_teamspawn")) != -1)
+		spawns[totalspawns++] = entity;
+
+	int tele = spawns[GetRandomInt(0, totalspawns - 1)];
+
+	float origin[3];
+	GetEntityOrigin(tele, origin);
+
+	float angles[3];
+	GetEntityAngles(tele, angles);
+
+	TeleportEntity(client, origin, angles, NULL_VECTOR);
+
 	CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(client));
 
 	if (g_GlobalTarget == client)
@@ -3990,7 +4007,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 				TF2Attrib_ApplyMoveSpeedPenalty(client, 0.34);
 		}
 
-		g_Player[client].type = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		g_Player[client].type = GetZombieTypeByName(DEFAULT_ZOMBIE);
 
 		if (g_Match.pausezombies)
 			TF2_AddCondition(client, TFCond_FreezeInput);
@@ -4177,6 +4194,7 @@ public Action Command_UnpauseZombies(int client, int args)
 public void OnClientConnected(int client)
 {
 	g_Player[client].Init(client);
+	g_JustConnected[client] = true;
 }
 
 public void OnClientPutInServer(int client)
@@ -6021,7 +6039,7 @@ void KillAllZombies()
 {
 	int entity = -1; CBaseNPC npc;
 	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
-		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(ZOMBIE_DEFAULT))
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(DEFAULT_ZOMBIE))
 			OnZombieDeath(entity);
 
 	for (int i = 1; i <= MaxClients; i++)
@@ -6642,6 +6660,8 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
+		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+
 		if (!noragdoll)
 		{
 			char sModel[PLATFORM_MAX_PATH];
@@ -6655,7 +6675,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		{
 			g_Player[attacker].AddStat(STAT_KILLS, 1);
 
-			if (g_Zombies[npc.Index].type != GetZombieTypeByName(ZOMBIE_DEFAULT))
+			if (g_Zombies[npc.Index].type != GetZombieTypeByName(DEFAULT_ZOMBIE))
 				g_Player[attacker].AddStat(STAT_SPECIALS, 1);
 		}
 
@@ -7103,7 +7123,7 @@ float CalculateSpeed(int special)
 int CalculateHealth(int entity)
 {
 	if (entity > 0 && entity <= MaxClients && GetClientTeam(entity) != TEAM_ZOMBIES)
-		return g_Player[entity].HasPerk("juggernog") ? 300 : 200;
+		return g_Player[entity].HasPerk("juggernog") ? JUGGERNOG_HEALTH : BASE_HEALTH;
 
 	CBaseNPC npc;
 	if (entity > MaxClients)
@@ -7112,7 +7132,7 @@ int CalculateHealth(int entity)
 	int special = (entity > 0 && entity <= MaxClients) ? g_Player[entity].type : g_Zombies[npc.Index].type;
 
 	if (special == -1)
-		special = GetZombieTypeByName(ZOMBIE_DEFAULT);
+		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
 	
 	int basehealth = g_ZombieTypes[special].health;
 
@@ -7125,7 +7145,7 @@ int CalculateHealth(int entity)
 		else if (class == view_as<int>(TFClass_Soldier))
 			basehealth = 250;
 		else
-			basehealth = 200;
+			basehealth = BASE_HEALTH;
 	}
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
