@@ -124,6 +124,7 @@
 /*****************************/
 //ConVars
 
+ConVar convar_PlayableZombies;
 ConVar convar_Ragdolls;
 ConVar convar_BloodFx;
 
@@ -1420,6 +1421,7 @@ public void OnPluginStart()
 	Database.Connect(OnSQLConnect, "default");
 
 	//ConVars
+	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "0", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 
@@ -4367,19 +4369,29 @@ public Action OnClientCommand(int client, int args)
 		
 		if (team != TEAM_ZOMBIES && team != TEAM_SURVIVORS)
 			return Plugin_Continue;
-
-		if (!IsDrixevel(client) && team == TEAM_ZOMBIES && g_Match.roundphase != PHASE_STARTING)
+		
+		if (team == TEAM_ZOMBIES)
 		{
-			ShowVGUIPanel(client, "team");
-			PrintErrorMessage(client, "Match must be starting to become a Zombie.");
-			return Plugin_Stop;
-		}
+			if (!convar_PlayableZombies.BoolValue)
+			{
+				ShowVGUIPanel(client, "team");
+				PrintErrorMessage(client, "Playable zombies are currently disabled.");
+				return Plugin_Stop;
+			}
+			
+			if (g_Match.roundphase != PHASE_STARTING)
+			{
+				ShowVGUIPanel(client, "team");
+				PrintErrorMessage(client, "Match must be starting to become a Zombie.");
+				return Plugin_Stop;
+			}
 
-		if (!IsDrixevel(client) && team == TEAM_ZOMBIES && GetTeamAbsCount(TEAM_SURVIVORS) < 1)
-		{
-			ShowVGUIPanel(client, "team");
-			PrintErrorMessage(client, "Match must consist of 1 Survivor already in order to become a Zombie. (besides yourself)");
-			return Plugin_Stop;
+			if (GetTeamAbsCount(TEAM_SURVIVORS) < 1)
+			{
+				ShowVGUIPanel(client, "team");
+				PrintErrorMessage(client, "Match must consist of 1 Survivor already in order to become a Zombie. (besides yourself)");
+				return Plugin_Stop;
+			}
 		}
 
 		return Plugin_Continue;
