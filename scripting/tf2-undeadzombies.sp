@@ -33,37 +33,6 @@
 #define MAX_POWERUPS 32
 #define MAX_ZOMBIETYPES 32
 
-#define LOBBY_TIME 30
-#define MAX_POINTS 100000
-
-#define BASE_HEALTH 200
-#define JUGGERNOG_HEALTH 300
-
-#define PLANK_HEALTH 400
-#define PLANK_COOLDOWN 30.0
-
-#define POWERUP_CHANCE 25.0
-#define POWERUP_COOLDOWN 16
-
-#define MAX_PERKS 4
-
-#define DEFAULT_DIFFICULTY "Medium"
-#define DEFAULT_ZOMBIE "Common"
-
-#define ZOMBIE_WAVE_TIMER_MIN 10.0
-#define ZOMBIE_WAVE_TIMER_MAX 15.0
-
-#define ZOMBIE_HIT_DISTANCE 75.0
-#define ZOMBIE_FACE_DISTANCE 250.0
-
-#define ZOMBIE_ATTACK_SPEED_MIN 0.4
-#define ZOMBIE_ATTACK_SPEED_MAX 0.7
-
-#define ZOMBIE_DAMAGE_MIN 15.0
-#define ZOMBIE_DAMAGE_MAX 25.0
-
-#define ZOMBIE_BASE_SPEED 75.0
-
 #define INTERACT_SUCCESS 0
 #define INTERACT_INSUFFICIENTFUNDS 1
 #define INTERACT_MAXREACHED 2
@@ -127,6 +96,32 @@
 ConVar convar_PlayableZombies;
 ConVar convar_Ragdolls;
 ConVar convar_BloodFx;
+ConVar convar_MaxPerks;
+
+ConVar convar_Default_Difficulty;
+ConVar convar_Default_Zombie;
+
+ConVar convar_Planks_Health;
+ConVar convar_Planks_Cooldown;
+
+ConVar convar_Powerups_Chance;
+ConVar convar_Powerups_Cooldown;
+
+ConVar convar_MaxPoints;
+ConVar convar_LobbyTime;
+
+ConVar convar_Survivors_BaseHealth;
+ConVar convar_Survivors_BaseHealth_Juggernog;
+
+ConVar convar_Zombies_BaseSpeed;
+ConVar convar_Zombies_Wave_Timer_Min;
+ConVar convar_Zombies_Wave_Timer_Max;
+ConVar convar_Zombies_Hit_Distance;
+//ConVar convar_Zombies_Face_Distance;
+ConVar convar_Zombies_Attack_Speed_Min;
+ConVar convar_Zombies_Attack_Speed_Max;
+ConVar convar_Zombies_Attack_Damage_Min;
+ConVar convar_Zombies_Attack_Damage_Max;
 
 /*****************************/
 //Globals
@@ -287,7 +282,10 @@ enum struct Match
 
 	void Init()
 	{
-		this.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
+		char sDifficulty[64];
+		convar_Default_Difficulty.GetString(sDifficulty, sizeof(sDifficulty));
+		
+		this.difficulty = GetDifficultyByName(sDifficulty);
 		this.roundtime = 0;
 		this.roundtimer = null;
 		this.roundphase = PHASE_HIBERNATION;
@@ -304,12 +302,18 @@ enum struct Match
 		this.powerups_cooldown = -1;
 
 		this.mutation = MUTATION_NONE;
-		this.mutation_special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+		this.mutation_special = GetZombieTypeByName(sZombie);
 	}
 
 	void Reset()
 	{
-		this.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
+		char sDifficulty[64];
+		convar_Default_Difficulty.GetString(sDifficulty, sizeof(sDifficulty));
+
+		this.difficulty = GetDifficultyByName(sDifficulty);
 		this.roundtime = 0;
 		StopTimer(this.roundtimer);
 		this.roundphase = PHASE_HIBERNATION;
@@ -326,7 +330,10 @@ enum struct Match
 		this.powerups_cooldown = -1;
 
 		this.mutation = MUTATION_NONE;
-		this.mutation_special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+		this.mutation_special = GetZombieTypeByName(sZombie);
 
 		int entity = -1;
 		while ((entity = FindEntityByClassname(entity, "entity_revive_marker")) != -1)
@@ -536,7 +543,9 @@ enum struct Player
 		this.zombiekills = 0;
 
 		this.sounds = -1.0;
-		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+		this.type = GetZombieTypeByName(sZombie);
 		this.insidemap = false;
 		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
@@ -585,7 +594,9 @@ enum struct Player
 		this.zombiekills = 0;
 
 		this.sounds = -1.0;
-		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+		this.type = GetZombieTypeByName(sZombie);
 		this.insidemap = false;
 		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
@@ -762,8 +773,8 @@ enum struct Player
 		int add = RoundFloat(float(value) * g_Difficulty[g_Match.difficulty].points_multiplier);
 		this.points += add;
 
-		if (this.points > MAX_POINTS)
-			this.points = MAX_POINTS;
+		if (this.points > convar_MaxPoints.IntValue)
+			this.points = convar_MaxPoints.IntValue;
 
 		this.AddStat(STAT_GAINED, add);
 	}
@@ -782,7 +793,7 @@ enum struct Player
 	//perks
 	void AddPerk(const char[] name)
 	{
-		if (this.perks.Length >= MAX_PERKS)
+		if (this.perks.Length >= convar_MaxPerks.IntValue)
 		{
 			this.ReplacePerkMenu(name);
 			return;
@@ -795,7 +806,7 @@ enum struct Player
 	void ReplacePerkMenu(const char[] name)
 	{
 		Menu menu = new Menu(MenuHandler_ReplacePerk);
-		menu.SetTitle("Pick a perk to replace with %s: (max %i)", name, MAX_PERKS);
+		menu.SetTitle("Pick a perk to replace with %s: (max %i)", name, convar_MaxPerks.IntValue);
 
 		char sID[16]; char perk[64];
 		for (int i = 0; i < this.perks.Length; i++)
@@ -866,7 +877,7 @@ enum struct Player
 		}
 		else if (StrEqual(name, "juggernog", false))
 		{
-			SetEntityHealth(this.client, JUGGERNOG_HEALTH);
+			SetEntityHealth(this.client, convar_Survivors_BaseHealth_Juggernog.IntValue);
 		}
 		else if (StrEqual(name, "packapunch", false))
 		{
@@ -962,7 +973,7 @@ enum struct Player
 		}
 		else if (StrEqual(name, "juggernog", false))
 		{
-			SetEntityHealth(this.client, BASE_HEALTH);
+			SetEntityHealth(this.client, convar_Survivors_BaseHealth.IntValue);
 		}
 		else if (StrEqual(name, "staminup", false))
 		{
@@ -1130,7 +1141,7 @@ public Action Timer_Regen(Handle timer, any data)
 	g_Player[victim].regentimer = null;
 
 	if (IsClientInGame(victim) && IsPlayerAlive(victim))
-		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? JUGGERNOG_HEALTH : BASE_HEALTH);
+		SetEntityHealth(victim, g_Player[victim].HasPerk("juggernog") ? convar_Survivors_BaseHealth_Juggernog.IntValue : convar_Survivors_BaseHealth.IntValue);
 }
 
 public Action Timer_SetOnFire(Handle timer, any data)
@@ -1199,7 +1210,9 @@ enum struct Zombies
 	{
 		this.entity = -1;
 		this.class = -1;
-		this.type = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+		this.type = GetZombieTypeByName(sZombie);
 		this.speed = 0.0;
 		this.lastattack = -1.0;
 		this.target = -1;
@@ -1424,6 +1437,32 @@ public void OnPluginStart()
 	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "0", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_MaxPerks = CreateConVar("sm_undead_max_perks", "4", "What should the maximum amount of perks be?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	
+	convar_Default_Difficulty = CreateConVar("sm_undead_default_difficulty", "Medium", "What should the default difficulty be?", FCVAR_NOTIFY);
+	convar_Default_Zombie = CreateConVar("sm_undead_default_zombie", "Common", "What should the default zombie be?", FCVAR_NOTIFY);
+
+	convar_Planks_Health = CreateConVar("sm_undead_planks_health", "400", "How much health should planks have total to start?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Planks_Cooldown = CreateConVar("sm_undead_planks_cooldown", "30.0", "What should the cooldown timer be for planks to be rebuilt on being destroyed?", FCVAR_NOTIFY, true, 0.0, true, 1.0);	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	
+	convar_Powerups_Chance = CreateConVar("sm_undead_powerups_chance", "25.0", "How much of a chance is there for powerups to spawn?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Powerups_Cooldown = CreateConVar("sm_undead_powerups_cooldown", "16", "What should the cooldown timer be for powerups to be spawned again?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	
+	convar_MaxPoints = CreateConVar("sm_undead_max_points", "100000", "How many points should the system cap them at?", FCVAR_NOTIFY, true, 0.0);
+	convar_LobbyTime = CreateConVar("sm_undead_lobby_time", "30", "How long should the lobby phase be?", FCVAR_NOTIFY, true, 1.0);
+	
+	convar_Survivors_BaseHealth = CreateConVar("sm_undead_survivors_basehealth", "200.0", "What should the base health for survivors be?", FCVAR_NOTIFY, true, 1.0);
+	convar_Survivors_BaseHealth_Juggernog = CreateConVar("sm_undead_survivors_basehealth_juggernog", "300.0", "What should the base health for survivors be with Juggernog?", FCVAR_NOTIFY, true, 1.0);
+
+	convar_Zombies_BaseSpeed = CreateConVar("sm_undead_zombies_basespeed", "100.0", "What should the base speed for the zombies be?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Wave_Timer_Min = CreateConVar("sm_undead_zombies_wave_timer_min", "10.0", "What should the minimum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Wave_Timer_Max = CreateConVar("sm_undead_zombies_wave_timer_max", "15.0", "What should the maximum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Hit_Distance = CreateConVar("sm_undead_zombies_hit_distance", "75.0", "What is the distance for zombies to hit players?", FCVAR_NOTIFY, true, 1.0);
+	//convar_Zombies_Face_Distance = CreateConVar("sm_undead_zombies_face_distance", "250.0", "What is the distance for zombies to face players?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Attack_Speed_Min = CreateConVar("sm_undead_zombies_attack_speed_min", "0.4", "What is the minimum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Attack_Speed_Max = CreateConVar("sm_undead_zombies_attack_speed_max", "0.7", "What is the maximum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Attack_Damage_Max = CreateConVar("sm_undead_zombies_attack_damage_max", "25.0", "What is the maximum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
@@ -2211,16 +2250,19 @@ void InitLobby()
 	
 	TF2_RespawnAll();
 	FindConVar("mp_disable_respawn_times").IntValue = 0;
+
+	char sDifficulty[64];
+	convar_Default_Difficulty.GetString(sDifficulty, sizeof(sDifficulty));
 	
-	g_Match.difficulty = GetDifficultyByName(DEFAULT_DIFFICULTY);
-	g_Match.roundtime = LOBBY_TIME;
+	g_Match.difficulty = GetDifficultyByName(sDifficulty);
+	g_Match.roundtime = convar_LobbyTime.IntValue;
 	g_Match.round = 1;
 	g_Match.roundphase = PHASE_STARTING;
 
 	StopTimer(g_Match.roundtimer);
 	g_Match.roundtimer = CreateTimer(1.0, Timer_RoundTimer, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
-	CreateTF2Timer(LOBBY_TIME);
+	CreateTF2Timer(convar_LobbyTime.IntValue);
 
 	if (g_Match.pausetimer)
 		PauseTF2Timer();
@@ -2515,7 +2557,7 @@ public Action Timer_SpawnWave(Handle timer)
 
 int GetWaveTime()
 {
-	float base = GetRandomFloat(ZOMBIE_WAVE_TIMER_MIN, ZOMBIE_WAVE_TIMER_MAX);
+	float base = GetRandomFloat(convar_Zombies_Wave_Timer_Min.FloatValue, convar_Zombies_Wave_Timer_Max.FloatValue);
 	float round_multi = 0.04 * float(g_Match.round);
 	int time = RoundFloat((base - round_multi) * g_Difficulty[g_Match.difficulty].wavespawn_rate);
 	//PrintToChatAll("Wave Time: %i", time);
@@ -2714,8 +2756,11 @@ public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflic
 					points = RoundFloat(float(points) * 1.5);
 				
 				g_Player[attacker].AddPoints(points);
-
-				if (g_Player[client].type == GetZombieTypeByName(DEFAULT_ZOMBIE))
+				
+				char sZombie[64];
+				convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+				
+				if (g_Player[client].type == GetZombieTypeByName(sZombie))
 					g_Player[attacker].AddStat(STAT_SPECIALS, 1);
 			}
 
@@ -2924,7 +2969,10 @@ void SpawnWave(int amount)
 		return;
 	
 	int total = amount;
-	int special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+	int special = GetZombieTypeByName(sZombie);
 
 	float origin[3];
 	for (int i = 1; i <= MaxClients; i++)
@@ -2952,10 +3000,13 @@ void SpawnWave(int amount)
 
 int GetZombieType()
 {
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
 	if (GetRandomFloat(0.0, 1000.0) < 950.0 && g_Match.mutation != MUTATION_SPECIALSONLY)
-		return GetZombieTypeByName(DEFAULT_ZOMBIE);
+		return GetZombieTypeByName(sZombie);
 	
-	if (g_Match.mutation == MUTATION_ONESPECIALONLY && g_Match.mutation_special != GetZombieTypeByName(DEFAULT_ZOMBIE))
+	if (g_Match.mutation == MUTATION_ONESPECIALONLY && g_Match.mutation_special != GetZombieTypeByName(sZombie))
 		return g_Match.mutation_special;
 	
 	int specials[32];
@@ -2969,7 +3020,7 @@ int GetZombieType()
 		specials[total++] = i;
 	}
 
-	return (total == 0) ? GetZombieTypeByName(DEFAULT_ZOMBIE) : specials[GetRandomInt(0, total - 1)];
+	return (total == 0) ? GetZombieTypeByName(sZombie) : specials[GetRandomInt(0, total - 1)];
 }
 
 int GetRandomZombieSpecial()
@@ -2979,8 +3030,11 @@ int GetRandomZombieSpecial()
 
 	for (int i = 1; i < g_TotalZombieTypes; i++)
 		specials[total++] = i;
+	
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
 
-	return (total == 0) ? GetZombieTypeByName(DEFAULT_ZOMBIE) : specials[GetRandomInt(1, total - 2)];
+	return (total == 0) ? GetZombieTypeByName(sZombie) : specials[GetRandomInt(1, total - 2)];
 }
 
 bool GetRandomSpawn(float origin[3])
@@ -3109,8 +3163,11 @@ CBaseNPC SpawnRandomZombie(int special = -1)
 
 void ApplySpecialUpdates(int client, int special, float origin[3])
 {
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
 	if (special == -1)
-		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		special = GetZombieTypeByName(sZombie);
 	
 	g_Player[client].type = special;
 	g_Player[client].sounds = GetZombieSoundDuration(client);
@@ -3127,7 +3184,7 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 	
 	TF2_SetPlayerClass(client, view_as<TFClassType>(class), false, false);
 
-	if (special == GetZombieTypeByName(DEFAULT_ZOMBIE))
+	if (special == GetZombieTypeByName(sZombie))
 	{
 		float size = GetRandomFloat(1.0, 1.0);
 		SetEntPropFloat(client, Prop_Send, "m_flModelScale", size);
@@ -3208,8 +3265,11 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 		return INVALID_NPC;
 	}
 
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
 	if (special == -1)
-		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		special = GetZombieTypeByName(sZombie);
 	
 	origin[2] += 10.0;
 
@@ -3313,7 +3373,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	if (strlen(g_ZombieTypes[special].particle) > 0)
 		AttachParticle(entity, g_ZombieTypes[special].particle, 0.0, "flag");
 	
-	if (special == GetZombieTypeByName(DEFAULT_ZOMBIE))
+	if (special == GetZombieTypeByName(sZombie))
 	{
 		npc.nSize = GetRandomFloat(1.0, 1.0);
 
@@ -3574,11 +3634,11 @@ public void OnZombieThink(int entity)
 	if ((ground = GetEntPropEnt(target, Prop_Send, "m_hGroundEntity")) > MaxClients && g_InteractableType[ground] == INTERACTABLE_TYPE_BUILDING)
 		isonmachine = true;
 	
-	if (GetVectorDistance(vecNPCPos, vecTargetPos) > (ZOMBIE_HIT_DISTANCE * (isonmachine ? 2.0 : 1.0)))
+	if (GetVectorDistance(vecNPCPos, vecTargetPos) > (convar_Zombies_Hit_Distance.FloatValue * (isonmachine ? 2.0 : 1.0)))
 		g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
 	else if (g_Zombies[npc.Index].lastattack <= GetGameTime())
 	{
-		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX);
+		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(convar_Zombies_Attack_Speed_Min.FloatValue, convar_Zombies_Attack_Speed_Max.FloatValue);
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
 		
 		int type = g_Zombies[npc.Index].type;
@@ -3695,7 +3755,7 @@ public Action OnZombiesTraceAttack(int victim, int& attacker, int& inflictor, fl
 {
 	if (hitbox == 0 && hitgroup == 1)
 	{
-		damage *= 1.10;
+		damage *= 1.05;
 		damagetype |= DMG_CRIT;
 		return Plugin_Changed;
 	}
@@ -3726,6 +3786,7 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 	if ((damagetype & DMG_CRIT) == DMG_CRIT)
 	{
 		EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
+		
 		if (attacker > 0 && attacker != victim)
 		{
 			TE_Particle("crit_text", damagePosition);
@@ -4009,7 +4070,10 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 				TF2Attrib_ApplyMoveSpeedPenalty(client, 0.34);
 		}
 
-		g_Player[client].type = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		char sZombie[64];
+		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
+		g_Player[client].type = GetZombieTypeByName(sZombie);
 
 		if (g_Match.pausezombies)
 			TF2_AddCondition(client, TFCond_FreezeInput);
@@ -4241,6 +4305,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 		if ((damagetype & DMG_CRIT) == DMG_CRIT)
 		{
 			EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
+			
 			if (attacker > 0 && attacker != victim)
 			{
 				TE_Particle("crit_text", damagePosition);
@@ -5292,7 +5357,7 @@ void SpawnPowerup(float origin[3], int index = -1, bool cooldown = false)
 		if (g_Match.powerups_cooldown != -1 && g_Match.powerups_cooldown > time)
 			return;
 		
-		g_Match.powerups_cooldown = time + POWERUP_COOLDOWN;
+		g_Match.powerups_cooldown = time + convar_Powerups_Cooldown.IntValue;
 	}
 
 	int entity = CreateEntityByName("tf_halloween_pickup");
@@ -5724,7 +5789,7 @@ int GetRandomMysteryWeapon(int client)
 void ResetPlank(int entity)
 {
 	DispatchKeyValue(entity, "solid", "0");
-	SetEntProp(entity, Prop_Data, "m_iHealth", PLANK_HEALTH);
+	SetEntProp(entity, Prop_Data, "m_iHealth", convar_Planks_Health.IntValue);
 	SetEntProp(entity, Prop_Data, "m_iDisabled", 0);
 
 	float fOrigin[3];
@@ -5782,7 +5847,7 @@ void OnPlankTick(int entity)
 		if (g_Player[i].plank_damage_tick == -1.0 || g_Player[i].plank_damage_tick != -1.0 && g_Player[i].plank_damage_tick <= time)
 		{
 			DamagePlank(entity, CalculateDamage(g_Player[i].type));
-			g_Player[i].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
+			g_Player[i].plank_damage_tick = time + GetRandomFloat(convar_Zombies_Attack_Speed_Min.FloatValue, convar_Zombies_Attack_Speed_Max.FloatValue) * 2.0;
 		}
 		
 		TF2_AddCondition(i, TFCond_FreezeInput);
@@ -5817,7 +5882,7 @@ void OnPlankTick(int entity)
 			loco.FaceTowards(fOrigin);
 
 			DamagePlank(entity, CalculateDamage(g_Zombies[npc.Index].type));
-			g_Zombies[npc.Index].plank_damage_tick = time + GetRandomFloat(ZOMBIE_ATTACK_SPEED_MIN, ZOMBIE_ATTACK_SPEED_MAX) * 2.0;
+			g_Zombies[npc.Index].plank_damage_tick = time + GetRandomFloat(convar_Zombies_Attack_Speed_Min.FloatValue, convar_Zombies_Attack_Speed_Max.FloatValue) * 2.0;
 		}
 
 		npc.flRunSpeed = 0.0;
@@ -5845,7 +5910,7 @@ bool DamagePlank(int entity, float damage = 15.0)
 	{
 		AcceptEntityInput(entity, "Disable");
 		RecomputeNavs();
-		g_RebuildDelay[entity] = GetGameTime() + PLANK_COOLDOWN;
+		g_RebuildDelay[entity] = GetGameTime() + convar_Planks_Cooldown.FloatValue;
 		SetEntProp(entity, Prop_Data, "m_iHealth", 0);
 
 		return false;
@@ -6049,9 +6114,12 @@ void OnDoorTick(int entity)
 
 void KillAllZombies()
 {
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
 	int entity = -1; CBaseNPC npc;
 	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
-		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(DEFAULT_ZOMBIE))
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(sZombie))
 			OnZombieDeath(entity);
 
 	for (int i = 1; i <= MaxClients; i++)
@@ -6667,7 +6735,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		noragdoll = true;
 	}
 	
-	if (powerups && GetRandomFloat(0.0, 100.0) <= POWERUP_CHANCE && (entity <= MaxClients && g_Player[entity].insidemap || entity > MaxClients && g_Zombies[npc.Index].insidemap))
+	if (powerups && GetRandomFloat(0.0, 100.0) <= convar_Powerups_Chance.FloatValue && (entity <= MaxClients && g_Player[entity].insidemap || entity > MaxClients && g_Zombies[npc.Index].insidemap))
 		SpawnPowerup(vecOrigin, -1, true);
 
 	if (entity > MaxClients)
@@ -6687,7 +6755,10 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		{
 			g_Player[attacker].AddStat(STAT_KILLS, 1);
 
-			if (g_Zombies[npc.Index].type != GetZombieTypeByName(DEFAULT_ZOMBIE))
+			char sZombie[64];
+			convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
+			if (g_Zombies[npc.Index].type != GetZombieTypeByName(sZombie))
 				g_Player[attacker].AddStat(STAT_SPECIALS, 1);
 		}
 
@@ -6772,12 +6843,6 @@ public Action Timer_Delete(Handle timer, any data)
 
 public Action Command_Difficulty(int client, int args)
 {
-	if (g_Match.roundphase != PHASE_STARTING)
-	{
-		CPrintToChat(client, "You aren't allowed to switch the difficulty during the match.");
-		return Plugin_Handled;
-	}
-
 	bool isadmin = CheckCommandAccess(client, "", ADMFLAG_GENERIC, true);
 
 	if (!isadmin && GetTeamAliveCount(TEAM_SURVIVORS) > 1)
@@ -6839,12 +6904,6 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 	{
 		case MenuAction_Select:
 		{
-			if (!IsDrixevel(param1) && g_Match.roundphase != PHASE_STARTING)
-			{
-				CPrintToChat(param1, "You aren't allowed to switch the difficulty during the match.");
-				return;
-			}
-
 			char sDifficulty[16];
 			menu.GetItem(param2, sDifficulty, sizeof(sDifficulty));
 			UpdateDifficulty(StringToInt(sDifficulty), param1);
@@ -6860,12 +6919,6 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 
 void UpdateDifficulty(int difficulty, int admin = -1)
 {
-	if (admin != -1 && !IsDrixevel(admin) && g_Match.roundphase != PHASE_STARTING)
-	{
-		CPrintToChat(admin, "You aren't allowed to switch the difficulty during the match.");
-		return;
-	}
-
 	g_Match.difficulty = difficulty;
 
 	if (admin != -1)
@@ -7121,7 +7174,7 @@ float CalculateSpeed(int special)
 	float basespeed = g_ZombieTypes[special].speed;
 
 	if (basespeed == -1.0)
-		basespeed = ZOMBIE_BASE_SPEED;
+		basespeed = convar_Zombies_BaseSpeed.FloatValue;
 	
 	float speed = (basespeed + (g_Match.round * 0.05)) * g_Difficulty[g_Match.difficulty].movespeed_multipler;
 
@@ -7135,7 +7188,7 @@ float CalculateSpeed(int special)
 int CalculateHealth(int entity)
 {
 	if (entity > 0 && entity <= MaxClients && GetClientTeam(entity) != TEAM_ZOMBIES)
-		return g_Player[entity].HasPerk("juggernog") ? JUGGERNOG_HEALTH : BASE_HEALTH;
+		return g_Player[entity].HasPerk("juggernog") ? convar_Survivors_BaseHealth_Juggernog.IntValue : convar_Survivors_BaseHealth.IntValue;
 
 	CBaseNPC npc;
 	if (entity > MaxClients)
@@ -7143,28 +7196,30 @@ int CalculateHealth(int entity)
 
 	int special = (entity > 0 && entity <= MaxClients) ? g_Player[entity].type : g_Zombies[npc.Index].type;
 
+	char sZombie[64];
+	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
+
 	if (special == -1)
-		special = GetZombieTypeByName(DEFAULT_ZOMBIE);
+		special = GetZombieTypeByName(sZombie);
 	
 	int basehealth = g_ZombieTypes[special].health;
 
 	if (basehealth == -1)
 	{
-		int class = (entity > 0 && entity <= MaxClients) ? view_as<int>(TF2_GetPlayerClass(entity)) : g_Zombies[npc.Index].class;
+		basehealth = convar_Survivors_BaseHealth.IntValue;
 
+		int class = (entity > 0 && entity <= MaxClients) ? view_as<int>(TF2_GetPlayerClass(entity)) : g_Zombies[npc.Index].class;
 		if (class == view_as<int>(TFClass_Heavy))
-			basehealth = 300;
+			basehealth *= 1.4;
 		else if (class == view_as<int>(TFClass_Soldier))
-			basehealth = 250;
-		else
-			basehealth = BASE_HEALTH;
+			basehealth *= 1.2;
 	}
 
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
 	int health = (basehealth + (g_Match.round * 2));
 
 	if (g_Match.mutation == MUTATION_MOREHEALTH)
-		health += 100;
+		health *= 1.2;
 	
 	//PrintToDrixevel("Zombie Health: %i", health);
 	return health;
@@ -7175,7 +7230,7 @@ float CalculateDamage(int special)
 	float basedamage = g_ZombieTypes[special].damage;
 
 	if (basedamage == -1.0)
-		basedamage = GetRandomFloat(ZOMBIE_DAMAGE_MIN, ZOMBIE_DAMAGE_MAX);
+		basedamage = GetRandomFloat(convar_Zombies_Attack_Damage_Min.FloatValue, convar_Zombies_Attack_Damage_Max.FloatValue);
 	
 	float damage = basedamage * g_Difficulty[g_Match.difficulty].damage_multiplier;
 
