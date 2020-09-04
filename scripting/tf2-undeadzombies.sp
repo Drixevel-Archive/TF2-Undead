@@ -1466,6 +1466,8 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
+	RegAdminCmd("sm_editdifficulty", Command_EditDifficulty, ADMFLAG_ROOT);
+	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
 	RegConsoleCmd("sm_gamemode", Command_MainMenu);
 	RegConsoleCmd("sm_undead", Command_MainMenu);
@@ -7924,4 +7926,115 @@ void CompletePackapunch(int punch, int propweapon)
 	
 	AcceptEntityInput(g_Machines[punch].glow, "Enable");
 	g_Machines[punch].inuse = false;
+}
+
+public Action Command_EditDifficulty(int client, int args)
+{
+	OpenEditDifficultyMenu(client);
+	return Plugin_Handled;
+}
+
+char g_EditDifficulty[MAXPLAYERS + 1][32];
+
+void OpenEditDifficultyMenu(int client)
+{
+	Menu menu = new Menu(MenuHandler_EditDifficulty);
+	menu.SetTitle("Edit the %s difficulty:", g_Difficulty[g_Match.difficulty].name);
+
+	char sDisplay[64];
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Name: %s", g_Difficulty[g_Match.difficulty].name);
+	menu.AddItem("name", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Damage Multiplier: %.2f", g_Difficulty[g_Match.difficulty].damage_multiplier);
+	menu.AddItem("damage", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Health Multiplier: %.2f", g_Difficulty[g_Match.difficulty].health_multiplier);
+	menu.AddItem("health", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Points Multiplier: %.2f", g_Difficulty[g_Match.difficulty].points_multiplier);
+	menu.AddItem("points", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Revive Multiplier: %.2f", g_Difficulty[g_Match.difficulty].revive_multiplier);
+	menu.AddItem("revive", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Wave Spawn Rate: %.2f", g_Difficulty[g_Match.difficulty].wavespawn_rate);
+	menu.AddItem("spawnrate", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Wave Spawn Min: %.2f", g_Difficulty[g_Match.difficulty].wavespawn_min);
+	menu.AddItem("spawnmin", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Wave Spawn Max: %.2f", g_Difficulty[g_Match.difficulty].wavespawn_max);
+	menu.AddItem("spawnmax", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Move Speed Multiplier: %.2f", g_Difficulty[g_Match.difficulty].movespeed_multipler);
+	menu.AddItem("movespeed", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Max Zombies: %i", g_Difficulty[g_Match.difficulty].max_zombies);
+	menu.AddItem("maxzombies", sDisplay);
+	
+	FormatEx(sDisplay, sizeof(sDisplay), "Admin Only: %s", g_Difficulty[g_Match.difficulty].admin_only ? "True" : "False");
+	menu.AddItem("adminonly", sDisplay);
+	
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_EditDifficulty(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			char sInfo[32];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			strcopy(g_EditDifficulty[param1], 32, sInfo);
+			CPrintToChat(param1, "Type in the new value for the '%s' setting in chat: (Type 'stop' to not change it)", sInfo);
+		}
+		case MenuAction_End:
+			delete menu;
+	}
+}
+
+public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
+{
+	if (strlen(g_EditDifficulty[client]) > 0)
+	{
+		char sValue[64];
+		strcopy(sValue, sizeof(sValue), sArgs);
+		TrimString(sValue);
+
+		if (StrEqual(sValue, "stop", false))
+		{
+			g_EditDifficulty[client][0] = '\0';
+			OpenEditDifficultyMenu(client);
+			return;
+		}
+
+		if (StrEqual(g_EditDifficulty[client], "name", false))
+			strcopy(g_Difficulty[g_Match.difficulty].name, 64, sValue);
+		else if (StrEqual(g_EditDifficulty[client], "damage", false))
+			g_Difficulty[g_Match.difficulty].damage_multiplier = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "health", false))
+			g_Difficulty[g_Match.difficulty].health_multiplier = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "points", false))
+			g_Difficulty[g_Match.difficulty].points_multiplier = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "revive", false))
+			g_Difficulty[g_Match.difficulty].revive_multiplier = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "spawnrate", false))
+			g_Difficulty[g_Match.difficulty].wavespawn_rate = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "spawnmin", false))
+			g_Difficulty[g_Match.difficulty].wavespawn_min = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "spawnmax", false))
+			g_Difficulty[g_Match.difficulty].wavespawn_max = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "movespeed", false))
+			g_Difficulty[g_Match.difficulty].movespeed_multipler = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "maxzombies", false))
+			g_Difficulty[g_Match.difficulty].max_zombies = StringToInt(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "adminonly", false))
+			g_Difficulty[g_Match.difficulty].admin_only = view_as<bool>(StringToInt(sValue));
+		
+		g_EditDifficulty[client][0] = '\0';
+		OpenEditDifficultyMenu(client);
+	}
 }
