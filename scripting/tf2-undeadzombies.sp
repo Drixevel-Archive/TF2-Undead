@@ -88,7 +88,6 @@
 #include <cbasenpc/util>
 #include <customkeyvalues>
 #include <tf2-items>
-#include <tf_econ_data>
 
 /*****************************/
 //ConVars
