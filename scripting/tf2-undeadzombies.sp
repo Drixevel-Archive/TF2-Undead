@@ -253,6 +253,33 @@ enum struct Difficulty
 	float movespeed_multipler;
 	int max_zombies;
 	bool admin_only;
+
+	void Save()
+	{
+		char sPath[PLATFORM_MAX_PATH];
+		BuildPath(Path_SM, sPath, sizeof(sPath), "configs/undead/difficulties.cfg");
+
+		KeyValues kv = new KeyValues("difficulties");
+
+		kv.ImportFromFile(sPath);
+		kv.JumpToKey(this.name, true);
+
+		kv.SetFloat("damage_multiplier", this.damage_multiplier);
+		kv.SetFloat("health_multiplier", this.health_multiplier);
+		kv.SetFloat("points_multiplier", this.points_multiplier);
+		kv.SetFloat("revive_multiplier", this.revive_multiplier);
+		kv.SetFloat("wavespawn_rate", this.wavespawn_rate);
+		kv.SetFloat("wavespawn_min", this.wavespawn_min);
+		kv.SetFloat("wavespawn_max", this.wavespawn_max);
+		kv.SetFloat("movespeed_multipler", this.movespeed_multipler);
+		kv.SetNum("max_zombies", this.max_zombies);
+		kv.SetNum("admin_only", this.admin_only);
+
+		kv.Rewind();
+		kv.ExportToFile(sPath);
+
+		delete kv;
+	}
 }
 
 Difficulty g_Difficulty[MAX_DIFFICULTIES];
@@ -1467,6 +1494,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
 	RegAdminCmd("sm_editdifficulty", Command_EditDifficulty, ADMFLAG_ROOT);
+	RegAdminCmd("sm_savedifficulty", Command_SaveDifficulty, ADMFLAG_ROOT);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
 	RegConsoleCmd("sm_gamemode", Command_MainMenu);
@@ -7989,7 +8017,7 @@ public int MenuHandler_EditDifficulty(Menu menu, MenuAction action, int param1, 
 			menu.GetItem(param2, sInfo, sizeof(sInfo));
 
 			strcopy(g_EditDifficulty[param1], 32, sInfo);
-			CPrintToChat(param1, "Type in the new value for the '%s' setting in chat: (Type 'stop' to not change it)", sInfo);
+			CPrintToChat(param1, "Type in the new value for the {haunted}%s {default} setting in chat: (Type {haunted}stop {default} to not change it)", sInfo);
 		}
 		case MenuAction_End:
 			delete menu;
@@ -8037,4 +8065,11 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 		g_EditDifficulty[client][0] = '\0';
 		OpenEditDifficultyMenu(client);
 	}
+}
+
+public Action Command_SaveDifficulty(int client, int args)
+{
+	g_Difficulty[g_Match.difficulty].Save();
+	CPrintToChat(client, "Difficulty {haunted}%s {default}has been saved.", g_Difficulty[g_Match.difficulty].name);
+	return Plugin_Handled;
 }
