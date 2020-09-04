@@ -1558,7 +1558,15 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloadconfigs", Command_ReloadConfigs, ADMFLAG_ROOT);
 	RegAdminCmd("sm_breakallplanks", Command_BreakAllPlanks, ADMFLAG_ROOT);
 
-	HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
+	HookEvent("player_spawn", Event_OnPlayerSpawn);
+	HookEvent("player_changeclass", Event_OnPlayerChangeClass);
+	HookEvent("player_death", Event_OnPlayerDeathPre, EventHookMode_Pre);
+	HookEvent("player_death", Event_OnPlayerDeath);
+	HookEvent("post_inventory_application", Event_OnRegeneration);
+	HookEvent("teamplay_round_start", Event_OnRoundStart);
+	HookEvent("teamplay_round_win", Event_OnRoundEnd);
+
+	AddCommandListener(Listener_VoiceMenu, "voicemenu");
 
 	Handle hGameConf = LoadGameConfigFile("undead.gamedata");
 
@@ -2257,7 +2265,7 @@ public void OnMapEnd()
 	g_Match.spawn_robots = false;
 }
 
-public void TF2_OnRoundStart(bool full_reset)
+public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	if (g_Match.secret_door_unlocked)
 		OpenBonusDoor();
@@ -2624,8 +2632,10 @@ public Action OnTeleTouch(int entity, int other)
 	}
 }
 
-public void TF2_OnRoundEnd(int team, int winreason, int flagcaplimit, bool full_round, float round_time, int losing_team_num_caps, bool was_sudden_death)
+public void Event_OnRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
+	int team = event.GetInt("team");
+
 	g_Match.bomb_heads = false;
 	g_Match.spawn_robots = false;
 
@@ -2701,7 +2711,7 @@ public void OnSaveStats(Database db, DBResultSet results, const char[] error, an
 		ThrowError("Error while saving statistics: %s", error);
 }
 
-public Action Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
+public Action Event_OnPlayerDeathPre(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 
@@ -2714,8 +2724,15 @@ public Action Event_OnPlayerDeath(Event event, const char[] name, bool dontBroad
 	return Plugin_Continue;
 }
 
-public void TF2_OnPlayerDeath(int client, int attacker, int assister, int inflictor, int damagebits, int stun_flags, int death_flags, int customkill)
+public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
+	int client = GetClientOfUserId(event.GetInt("userid"));
+
+	if (client < 1 || !IsClientInGame(client) || !IsPlayerAlive(client))
+		return;
+	
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
+	
 	g_Player[client].Clean(false);
 
 	if (g_Match.roundphase == PHASE_WAITING || g_Match.roundphase == PHASE_ACTIVE)
@@ -4012,8 +4029,13 @@ public Action Command_StartMatch(int client, int args)
 	return Plugin_Handled;
 }
 
-public void TF2_OnPlayerSpawn(int client, int team, int class)
+public void Event_OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
+	int client = GetClientOfUserId(event.GetInt("userid"));
+
+	if (client < 1 || !IsClientInGame(client) || !IsPlayerAlive(client))
+		return;
+	
 	if (IsPlayerAlive(client) && g_JustConnected[client])
 	{
 		g_JustConnected[client] = false;
@@ -4208,9 +4230,16 @@ void OverlayCommand(int client, char[] overlay)
 	}
 }
 
-public void TF2_OnClassChangePost(int client, TFClassType class)
+public void Event_OnPlayerChangeClass(Event event, const char[] classname, bool dontBroadcast)
 {
-	CreateTimer(0.2, Timer_ClassChange, GetClientUserId(client));
+	int userid = event.GetInt("userid");
+
+	int client = GetClientOfUserId(userid);
+	
+	if (client < 1 || !IsClientInGame(client) || !IsPlayerAlive(client))
+		return;
+	
+	CreateTimer(0.2, Timer_ClassChange, userid);
 }
 
 public Action Timer_ClassChange(Handle timer, any data)
@@ -4581,8 +4610,17 @@ public void OnGameFrame()
 	}
 }
 
-public Action TF2_OnCallMedic(int client)
+public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 {
+	char sVoice[32];
+	GetCmdArg(1, sVoice, sizeof(sVoice));
+
+	char sVoice2[32];
+	GetCmdArg(2, sVoice2, sizeof(sVoice2));
+	
+	if (!StrEqual(sVoice, "0", false) || !StrEqual(sVoice2, "0", false))
+		return Plugin_Continue;
+	
 	int time = GetTime();
 
 	if (g_Match.pausetimer || GetClientTeam(client) == TEAM_ZOMBIES)
@@ -6359,9 +6397,12 @@ public Action Command_SyncLobby(int client, int args)
 	return Plugin_Handled;
 }
 
-public void TF2_OnRegeneratePlayerPost(int client)
+public void Event_OnRegeneration(Event event, const char[] name, bool dontBroadcast)
 {
-	StripPlayer(client);
+	int client = GetClientOfUserId(event.GetInt("userid"));
+
+	if (client > 0 && IsClientInGame(client) && IsPlayerAlive(client))
+		StripPlayer(client);
 }
 
 bool IsVisibleTo(int client, int target, float maxdistance = 0.0, bool FromEyePosition = true, float z_axis = 0.0, float tolerance = 75.0)
