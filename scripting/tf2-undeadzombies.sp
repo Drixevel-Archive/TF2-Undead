@@ -5320,6 +5320,22 @@ void InspectWeapon(int client)
 	KeyValues kv = new KeyValues("inspect_weapon");
 	kv.SetSectionName("+inspect_server");
 	FakeClientCommandKeyValues(client, kv);
+	
+	CreateTimer(0.2, Timer_EndInspectAnim, GetClientUserId(client));
+}
+
+public Action Timer_EndInspectAnim(Handle timer, any data)
+{
+	int client;
+
+	if ((client = GetClientOfUserId(data)) == 0 || !IsClientInGame(client) || !IsPlayerAlive(client))
+		return Plugin_Continue;
+	
+	KeyValues kv = new KeyValues("inspect_weapon");
+	kv.SetSectionName("-inspect_server");
+	FakeClientCommandKeyValues(client, kv);
+
+	return Plugin_Continue;
 }
 
 /****************************************/
