@@ -1493,8 +1493,8 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
-	RegAdminCmd("sm_editdifficulty", Command_EditDifficulty, ADMFLAG_ROOT);
-	RegAdminCmd("sm_savedifficulty", Command_SaveDifficulty, ADMFLAG_ROOT);
+	RegAdminCmd("sm_editdifficulty", Command_EditDifficulty, ADMFLAG_SLAY);
+	RegAdminCmd("sm_savedifficulty", Command_SaveDifficulty, ADMFLAG_SLAY);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
 	RegConsoleCmd("sm_gamemode", Command_MainMenu);
@@ -7235,23 +7235,15 @@ int CalculateHealth(int entity)
 	int basehealth = g_ZombieTypes[special].health;
 
 	if (basehealth == -1)
-	{
 		basehealth = convar_Survivors_BaseHealth.IntValue;
 
-		int class = (entity > 0 && entity <= MaxClients) ? view_as<int>(TF2_GetPlayerClass(entity)) : g_Zombies[npc.Index].class;
-		if (class == view_as<int>(TFClass_Heavy))
-			basehealth *= 1.4;
-		else if (class == view_as<int>(TFClass_Soldier))
-			basehealth *= 1.2;
-	}
-
 	basehealth = RoundFloat(float(basehealth) * g_Difficulty[g_Match.difficulty].health_multiplier);
+
 	int health = (basehealth + (g_Match.round * 2));
 
 	if (g_Match.mutation == MUTATION_MOREHEALTH)
 		health *= 1.2;
 	
-	//PrintToDrixevel("Zombie Health: %i", health);
 	return health;
 }
 
