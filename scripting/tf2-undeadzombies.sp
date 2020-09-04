@@ -1461,7 +1461,7 @@ public void OnPluginStart()
 	Database.Connect(OnSQLConnect, "default");
 
 	//ConVars
-	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "0", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_MaxPerks = CreateConVar("sm_undead_max_perks", "4", "What should the maximum amount of perks be?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
