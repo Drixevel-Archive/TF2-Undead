@@ -3984,7 +3984,7 @@ public Action Command_StartMatch(int client, int args)
 
 public void TF2_OnPlayerSpawn(int client, int team, int class)
 {
-	if (g_JustConnected[client])
+	if (IsPlayerAlive(client) && g_JustConnected[client])
 	{
 		g_JustConnected[client] = false;
 		OpenMainMenu(client);
@@ -4260,7 +4260,7 @@ public Action Command_UnpauseZombies(int client, int args)
 public void OnClientConnected(int client)
 {
 	g_Player[client].Init(client);
-	g_JustConnected[client] = true;
+	g_JustConnected[client] = !g_Late ? true : false;
 }
 
 public void OnClientPutInServer(int client)
