@@ -122,6 +122,8 @@ ConVar convar_Zombies_Attack_Speed_Max;
 ConVar convar_Zombies_Attack_Damage_Min;
 ConVar convar_Zombies_Attack_Damage_Max;
 
+ConVar convar_MysteryBoxPrice;
+
 /*****************************/
 //Globals
 bool g_Late;
@@ -1489,6 +1491,8 @@ public void OnPluginStart()
 	convar_Zombies_Attack_Speed_Max = CreateConVar("sm_undead_zombies_attack_speed_max", "0.7", "What is the maximum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Max = CreateConVar("sm_undead_zombies_attack_damage_max", "25.0", "What is the maximum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
+	
+	convar_MysteryBoxPrice = CreateConVar("sm_undead_mystery_box_price", "1500", "The price for the Mystery Box to be used.", FCVAR_NOTIFY, true, 1.0);
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
@@ -5643,7 +5647,7 @@ void SpawnMysteryBoxes()
 
 		g_MysteryBox[mysterybox].status = true;
 		g_MysteryBox[mysterybox].hide = false;
-		g_MysteryBox[mysterybox].price = 1000;
+		g_MysteryBox[mysterybox].price = convar_MysteryBoxPrice.IntValue;
 		g_MysteryBox[mysterybox].inuse = false;
 		g_MysteryBox[mysterybox].glow = TF2_CreateGlow("mysterybox_color", mysterybox, view_as<int>({255, 200, 255, 150}));
 		g_MysteryBox[mysterybox].unlock = unlock;
