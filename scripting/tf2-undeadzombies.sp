@@ -4078,9 +4078,7 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 	TF2Attrib_RemoveMoveSpeedPenalty(client);
 
 	if (GetClientTeam(client) == TEAM_ZOMBIES)
-	{
-		TF2_RemoveAllWearables(client);
-		
+	{		
 		int index;
 		switch (TF2_GetPlayerClass(client))
 		{
@@ -4136,10 +4134,11 @@ public Action Timer_DelaySpawn(Handle timer, any data)
 		TFClassType class = TF2_GetPlayerClass(client);
 
 		if (class != TFClass_Scout && class != TFClass_Heavy && class != TFClass_Engineer && class != TFClass_Sniper)
+		{
 			TF2_SetPlayerClass(client, TFClass_Scout);
-		
-		TF2_RemoveAllWearables(client);
-		TF2_RegeneratePlayer(client);
+			TF2_RemoveAllWearables(client);
+			TF2_RegeneratePlayer(client);
+		}
 
 		OverlayCommand(client, "\"\"");
 		StripPlayer(client, false);
