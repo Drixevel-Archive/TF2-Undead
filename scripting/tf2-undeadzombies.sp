@@ -2786,7 +2786,9 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 				if ((weapon = GetPlayerWeaponSlot(client, 2)) != -1)
 					g_Player[client].melee = g_WeaponIndex[weapon];
 				
-				TF2_CreateAnnotationToAll(vecOrigin, "Stand Here...", 10.0, "vo/null.wav");
+				char sBuffer[256];
+				FormatEx(sBuffer, sizeof(sBuffer), "Revive %N - Stand Here", client);
+				TF2_CreateAnnotationToAll(vecOrigin, sBuffer, 10.0);
 
 				StopTimer(g_Player[client].revivetimer);
 
@@ -2850,6 +2852,8 @@ public Action Timer_DeleteMarker(Handle timer, DataPack pack)
 
 void TF2_CreateAnnotationToAll(float origin[3], const char[] text, float lifetime = 10.0, const char[] sound = "vo/null.wav")
 {
+	origin[2] += 50.0;
+
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (!IsClientInGame(i))
@@ -4908,7 +4912,7 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 
 		char sAnno[64];
 		FormatEx(sAnno, sizeof(sAnno), "%s Active", sBuilding);
-		TF2_CreateAnnotationToAll(origin, sAnno, StringToFloat(sDuration), "vo/null.wav");
+		TF2_CreateAnnotationToAll(origin, sAnno, StringToFloat(sDuration));
 
 		if (IsPlayerIndex(client))
 			g_Player[client].AddStat(STAT_BUILDINGS, 1);
@@ -4940,7 +4944,7 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 
 		char sAnno[64];
 		FormatEx(sAnno, sizeof(sAnno), "Door Opened");
-		TF2_CreateAnnotationToAll(origin, sAnno, 5.0, "vo/null.wav");
+		TF2_CreateAnnotationToAll(origin, sAnno, 5.0);
 
 		if (IsPlayerIndex(client))
 			g_Player[client].AddStat(STAT_DOORS, 1);
@@ -5795,7 +5799,7 @@ public Action Timer_MysteryBox(Handle timer, DataPack pack)
 	else if (ticks >= 5.0)
 	{
 		if (phase != 1)
-			TF2_CreateAnnotationToAll(origin, "Weapon is ready...", 10.0, "vo/null.wav");
+			TF2_CreateAnnotationToAll(origin, "Weapon Available", 10.0);
 		
 		phase = 1;
 	}
