@@ -348,7 +348,7 @@ enum struct Match
 		this.roundtime = 0;
 		StopTimer(this.roundtimer);
 		this.roundphase = PHASE_HIBERNATION;
-		StopTimer(this.hud_timer);
+		delete this.hud_timer;
 		this.round = 0;
 		
 		this.pausetimer = false;
@@ -5532,6 +5532,12 @@ bool OnPowerupPickup(int client, int entity)
 	StopSound(entity, SNDCHAN_USER_BASE + 14, "undead/powerups/powerup_loop.wav");
 
 	int index = g_PowerupIndex[entity];
+
+	if (index == -1)
+	{
+		AcceptEntityInput(entity, "Kill");
+		return false;
+	}
 
 	switch (index)
 	{
