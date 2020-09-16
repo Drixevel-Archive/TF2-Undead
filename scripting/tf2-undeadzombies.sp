@@ -121,6 +121,7 @@ ConVar convar_Zombies_Attack_Speed_Min;
 ConVar convar_Zombies_Attack_Speed_Max;
 ConVar convar_Zombies_Attack_Damage_Min;
 ConVar convar_Zombies_Attack_Damage_Max;
+ConVar convar_Zombies_BoundingBoxes;
 
 ConVar convar_MysteryBoxPrice;
 
@@ -1493,6 +1494,7 @@ public void OnPluginStart()
 	convar_Zombies_Attack_Speed_Max = CreateConVar("sm_undead_zombies_attack_speed_max", "0.7", "What is the maximum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Max = CreateConVar("sm_undead_zombies_attack_damage_max", "25.0", "What is the maximum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_BoundingBoxes = CreateConVar("sm_undead_zombies_bounding_boxes", "0.0", "Enable or disable bounding boxes for zombies? (DEBUG)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	
 	convar_MysteryBoxPrice = CreateConVar("sm_undead_mystery_box_price", "1500", "The price for the Mystery Box to be used.", FCVAR_NOTIFY, true, 1.0);
 
@@ -3653,7 +3655,8 @@ public void OnZombieThink(int entity)
 	if (npc == INVALID_NPC)
 		return;
 	
-	LaserBOX2(entity);
+	if (convar_Zombies_BoundingBoxes.BoolValue)
+		LaserBOX2(entity);
 
 	INextBot bot = npc.GetBot();
 	NextBotGroundLocomotion loco = npc.GetLocomotion();
