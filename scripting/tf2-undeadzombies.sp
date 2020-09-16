@@ -2420,6 +2420,8 @@ public Action Timer_RoundTimer(Handle timer)
 				
 				if (IsDrixevel(i))
 					g_Player[i].points = 9999999;
+				else if (TF2_GetPlayerClass(i) == TFClass_Heavy)
+					g_Player[i].points = 625;
 				
 				switch (GetClientTeam(i))
 				{
@@ -4680,11 +4682,13 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 			PrintErrorMessage(client, "Machine is currently in use.");
 			return Plugin_Stop;
 		}
+
+		int price = CalculatePrice(client, g_Machines[entity].price);
 		
-		if (!g_Player[client].RemovePoints(g_Machines[entity].price))
+		if (!g_Player[client].RemovePoints(price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
-			PrintErrorMessage(client, "You must have {haunted}%i {default}points to unlock this perk.", g_Machines[entity].price);
+			PrintErrorMessage(client, "You must have {haunted}%i {default}points to unlock this perk.", price);
 			return Plugin_Stop;
 		}
 		
@@ -4744,7 +4748,7 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 		char sClass[32];
 		TF2_GetClientClassName(client, sClass, sizeof(sClass));
 
-		int price = g_SpawnedWeapons[entity].price;
+		int price = CalculatePrice(client, g_SpawnedWeapons[entity].price);
 		int slot = TF2Items_GetItemKeyInt(g_CustomWeapons[index].name, "slot");
 
 		int weapon = GetPlayerWeaponSlot(client, slot);
@@ -4795,7 +4799,9 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 			return Plugin_Stop;
 		}
 
-		if (!g_Player[client].RemovePoints(g_MysteryBox[entity].price))
+		int price = CalculatePrice(client, g_MysteryBox[entity].price);
+
+		if (!g_Player[client].RemovePoints(price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
 			EmitGameSoundToClient(client, "Player.DenyWeaponSelection");
@@ -5056,7 +5062,7 @@ void OnMachineTick(int entity)
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to purchase %s for %i points.\n - %s", g_MachinesData[index].display, g_Machines[entity].price, g_MachinesData[index].description);
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to purchase %s for %i points.\n - %s", g_MachinesData[index].display, CalculatePrice(i, g_Machines[entity].price), g_MachinesData[index].description);
 			}
 			else
 			{
@@ -5248,7 +5254,7 @@ void OnWeaponTick(int entity)
 		{
 			if (unlock <= g_Match.round + 1)
 			{
-				int price = g_SpawnedWeapons[entity].price;
+				int price = CalculatePrice(i, g_SpawnedWeapons[entity].price);
 				int slot = TF2Items_GetItemKeyInt(g_CustomWeapons[index].name, "slot");
 
 				int weapon = GetPlayerWeaponSlot(i, slot);
@@ -5664,7 +5670,7 @@ void OnMysteryBoxTick(int entity)
 				g_Player[i].nearinteractable = entity;
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this mystery box for %i points!", g_MysteryBox[entity].price);
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this mystery box for %i points!", CalculatePrice(i, g_MysteryBox[entity].price));
 			}
 			else
 			{
@@ -8119,4 +8125,12 @@ public Action Command_SaveDifficulty(int client, int args)
 	g_Difficulty[g_Match.difficulty].Save();
 	CPrintToChat(client, "Difficulty {haunted}%s {default}has been saved.", g_Difficulty[g_Match.difficulty].name);
 	return Plugin_Handled;
+}
+
+int CalculatePrice(int client, int price)
+{
+	if (TF2_GetPlayerClass(client) == TFClass_Heavy)
+		price = RoundFloat(float(price) * 1.25);
+	
+	return price;
 }
