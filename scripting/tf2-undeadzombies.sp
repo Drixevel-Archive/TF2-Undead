@@ -127,7 +127,9 @@ ConVar convar_MysteryBoxPrice;
 /*****************************/
 //Globals
 bool g_Late;
+
 int g_GlowSprite;
+int g_LaserSprite;
 
 bool g_JustConnected[MAXPLAYERS + 1];
 
@@ -1975,6 +1977,7 @@ public void OnPluginEnd()
 public void OnMapStart()
 {
 	g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
+	g_LaserSprite = PrecacheModel("sprites/laser.vmt");
 
 	//Lobby Sounds
 	PrecacheSound(SOUND_LOBBY);
@@ -3514,17 +3517,25 @@ void FixZombieCollisions(CBaseNPC npc)
 	if (npc != INVALID_NPC && npc.nSize != -1.0)
 	{
 		int entity = npc.GetEntity();
+		
 		float vecMins[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
+
 		float vecMaxs[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
+	
+		float size = npc.nSize;
+
+		if (size < 1.0)
+			size += 1.0;
 		
-		vecMins[0] /= npc.nSize;
-		vecMins[1] /= npc.nSize;
-		vecMins[2] /= npc.nSize;
-		vecMaxs[0] *= npc.nSize;
-		vecMaxs[1] *= npc.nSize;
-		vecMaxs[2] *= npc.nSize;
+		vecMins[0] /= size;
+		vecMins[1] /= size;
+		vecMins[2] /= size;
+		vecMaxs[0] *= size;
+		vecMaxs[1] *= size;
+		vecMaxs[2] *= size;
+
 		npc.SetCollisionBounds(vecMins, vecMaxs);
 	}
 }
@@ -3641,6 +3652,8 @@ public void OnZombieThink(int entity)
 
 	if (npc == INVALID_NPC)
 		return;
+	
+	LaserBOX2(entity);
 
 	INextBot bot = npc.GetBot();
 	NextBotGroundLocomotion loco = npc.GetLocomotion();
@@ -7371,6 +7384,127 @@ stock void CreatePointGlow(float origin[3], float time = 0.95, float size = 0.5,
 {
 	TE_SetupGlowSprite(origin, g_GlowSprite, time, size, brightness);
 	TE_SendToAll();
+}
+
+#define RED2    0
+#define GRE    1
+#define BLU    2
+#define WHI    3
+
+#define X    0
+#define Y    1
+#define Z    2
+
+int colort[4][4] = { {255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255}, {255, 255, 255, 255} };
+
+stock void LaserP(float start[3], float end[3], int color[4])
+{
+    TE_SetupBeamPoints(start, end, g_LaserSprite, 0, 0, 0, 0.1, 1.5, 1.5, 7, 0.0, color, 0);
+    TE_SendToAll();
+}
+
+stock void LaserBOX2(int Ent)
+{
+	float posMin[4][3];
+	float posMax[4][3];
+	float orig[3];
+
+	GetEntPropVector(Ent, Prop_Send, "m_vecMins", posMin[0]);
+	GetEntPropVector(Ent, Prop_Send, "m_vecMaxs", posMax[0]);
+	GetEntPropVector(Ent, Prop_Send, "m_vecOrigin", orig);
+
+	// Incase the entity is a player i want to make the box fit..
+	char edictname[32];
+	GetEdictClassname(Ent, edictname, 32);
+	if (StrEqual(edictname, "player"))
+	{
+		posMax[0][2] += 16.0;
+	}
+	//
+	/*
+		0    =    X
+		1    =    Y
+		2    =    Z
+	*/
+	posMin[1][X] = posMax[0][X];
+	posMin[1][Y] = posMin[0][Y];
+	posMin[1][Z] = posMin[0][Z];
+	posMax[1][X] = posMin[0][X];
+	posMax[1][Y] = posMax[0][Y];
+	posMax[1][Z] = posMax[0][Z];
+	posMin[2][X] = posMin[0][X];
+	posMin[2][Y] = posMax[0][Y];
+	posMin[2][Z] = posMin[0][Z];
+	posMax[2][X] = posMax[0][X];
+	posMax[2][Y] = posMin[0][Y];
+	posMax[2][Z] = posMax[0][Z];
+	posMin[3][X] = posMax[0][X];
+	posMin[3][Y] = posMax[0][Y];
+	posMin[3][Z] = posMin[0][Z];
+	posMax[3][X] = posMin[0][X];
+	posMax[3][Y] = posMin[0][Y];
+	posMax[3][Z] = posMax[0][Z];
+
+	AddVectors(posMin[0], orig, posMin[0]);
+	AddVectors(posMax[0], orig, posMax[0]);
+	AddVectors(posMin[1], orig, posMin[1]);
+	AddVectors(posMax[1], orig, posMax[1]);
+	AddVectors(posMin[2], orig, posMin[2]);
+	AddVectors(posMax[2], orig, posMax[2]);
+	AddVectors(posMin[3], orig, posMin[3]);
+	AddVectors(posMax[3], orig, posMax[3]);
+
+	/*
+	RED2        =    RED2
+	BLUE    =    BLU
+	GREEN    =    GRE
+	WHITE    =    WHI
+	*/
+
+	//LaserP(posMin[0], posMax[0], colort[RED2]);
+	//LaserP(posMin[1], posMax[1], colort[BLU]);
+	//LaserP(posMin[2], posMax[2], colort[GRE]);
+	//LaserP(posMin[3], posMax[3], colort[WHI]);
+
+	//UP & DOWN
+
+	//BORDER
+	LaserP(posMin[0], posMax[3], colort[WHI]);
+	LaserP(posMin[1], posMax[2], colort[WHI]);
+	LaserP(posMin[3], posMax[0], colort[WHI]);
+	LaserP(posMin[2], posMax[1], colort[WHI]);
+	//CROSS
+	LaserP(posMin[3], posMax[2], colort[WHI]);
+	LaserP(posMin[1], posMax[0], colort[WHI]);
+	LaserP(posMin[2], posMax[3], colort[WHI]);
+	LaserP(posMin[3], posMax[1], colort[WHI]);
+	LaserP(posMin[2], posMax[0], colort[WHI]);
+	LaserP(posMin[0], posMax[1], colort[WHI]);
+	LaserP(posMin[0], posMax[2], colort[WHI]);
+	LaserP(posMin[1], posMax[3], colort[WHI]);
+
+
+	//TOP
+
+	//BORDER
+	LaserP(posMax[0], posMax[1], colort[WHI]);
+	LaserP(posMax[1], posMax[3], colort[WHI]);
+	LaserP(posMax[3], posMax[2], colort[WHI]);
+	LaserP(posMax[2], posMax[0], colort[WHI]);
+	//CROSS
+	LaserP(posMax[0], posMax[3], colort[WHI]);
+	LaserP(posMax[2], posMax[1], colort[WHI]);
+
+	//BOTTOM
+
+	//BORDER
+	LaserP(posMin[0], posMin[1], colort[WHI]);
+	LaserP(posMin[1], posMin[3], colort[WHI]);
+	LaserP(posMin[3], posMin[2], colort[WHI]);
+	LaserP(posMin[2], posMin[0], colort[WHI]);
+	//CROSS
+	LaserP(posMin[0], posMin[3], colort[WHI]);
+	LaserP(posMin[2], posMin[1], colort[WHI]);
 }
 
 void PrintErrorMessage(int client, const char[] format, any ...)
