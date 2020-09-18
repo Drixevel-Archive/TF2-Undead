@@ -1500,7 +1500,13 @@ public void OnPluginStart()
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
 	
+	RegConsoleCmd("sm_difficulty", Command_Difficulty);
+	RegConsoleCmd("sm_setdifficulty", Command_SetDifficulty);
+	RegConsoleCmd("sm_votedifficulty", Command_VoteDifficulty);
+
+	RegAdminCmd("sm_adddifficulty", Command_AddDifficulty, ADMFLAG_SLAY);
 	RegAdminCmd("sm_editdifficulty", Command_EditDifficulty, ADMFLAG_SLAY);
+	RegAdminCmd("sm_deletedifficulty", Command_DeleteDifficulty, ADMFLAG_SLAY);
 	RegAdminCmd("sm_savedifficulty", Command_SaveDifficulty, ADMFLAG_SLAY);
 	
 	RegConsoleCmd("sm_mainmenu", Command_MainMenu);
@@ -1508,10 +1514,6 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_undead", Command_MainMenu);
 
 	RegConsoleCmd("sm_undeadstats", Command_Statistics);
-
-	RegConsoleCmd("sm_difficulty", Command_Difficulty);
-	RegConsoleCmd("sm_setdifficulty", Command_Difficulty);
-	RegConsoleCmd("sm_votedifficulty", Command_VoteDifficulty);
 
 	RegAdminCmd("sm_round", Command_SetRound, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_setround", Command_SetRound, ADMFLAG_GENERIC);
@@ -6964,6 +6966,54 @@ public Action Timer_Delete(Handle timer, any data)
 
 public Action Command_Difficulty(int client, int args)
 {
+	if (!CheckCommandAccess(client, "", ADMFLAG_GENERIC, true))
+		OpenSetDifficultyMenu(client);
+	else
+		OpenDifficultyMenu(client);
+	
+	return Plugin_Handled;
+}
+
+void OpenDifficultyMenu(int client)
+{
+	Menu menu = new Menu(MenuHandler_Difficulty);
+	menu.SetTitle("Undead Difficulties");
+
+	menu.AddItem("set", "Set Difficulty");
+	menu.AddItem("add", "Add a new Difficulty");
+	menu.AddItem("edit", "Edit an existing Difficulty");
+	menu.AddItem("del", "Delete an existing Difficulty");
+
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch (action)
+	{
+		case MenuAction_Select:
+		{
+			char sInfo[32];
+			menu.GetItem(param2, sInfo, sizeof(sInfo));
+
+			bool isadmin = CheckCommandAccess(param1, "", ADMFLAG_GENERIC, true);
+
+			if (StrEqual(sInfo, "set", false))
+				OpenSetDifficultyMenu(param1, isadmin);
+			else if (StrEqual(sInfo, "add", false))
+				OpenAddDifficultyMenu(param1);
+			else if (StrEqual(sInfo, "edit", false))
+				OpenEditDifficultyMenu(param1);
+			else if (StrEqual(sInfo, "del", false))
+				OpenDeleteDifficultyMenu(param1);
+		}
+		case MenuAction_End:
+			delete menu;
+	}
+}
+
+public Action Command_SetDifficulty(int client, int args)
+{
 	bool isadmin = CheckCommandAccess(client, "", ADMFLAG_GENERIC, true);
 
 	if (!isadmin && GetTeamAliveCount(TEAM_SURVIVORS) > 1)
@@ -6974,7 +7024,7 @@ public Action Command_Difficulty(int client, int args)
 
 	if (args == 0)
 	{
-		OpenDifficultyMenu(client, isadmin);
+		OpenSetDifficultyMenu(client, isadmin);
 		return Plugin_Handled;
 	}
 
@@ -7000,9 +7050,15 @@ public Action Command_Difficulty(int client, int args)
 	return Plugin_Handled;
 }
 
-void OpenDifficultyMenu(int client, bool isadmin = false, bool back = false)
+void OpenSetDifficultyMenu(int client, bool isadmin = false, bool back = false)
 {
-	Menu menu = new Menu(MenuHandler_Difficulty);
+	if (!isadmin && GetTeamAliveCount(TEAM_SURVIVORS) > 1)
+	{
+		CPrintToChat(client, "You are only allowed to use this command if you're an admin or you're the only person on the server.");
+		return;
+	}
+
+	Menu menu = new Menu(MenuHandler_SetDifficulty);
 	menu.SetTitle("Choose a difficulty:");
 
 	char sID[16]; char sDisplay[128];
@@ -7019,7 +7075,7 @@ void OpenDifficultyMenu(int client, bool isadmin = false, bool back = false)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int param2)
+public int MenuHandler_SetDifficulty(Menu menu, MenuAction action, int param1, int param2)
 {
 	switch (action)
 	{
@@ -7028,7 +7084,7 @@ public int MenuHandler_Difficulty(Menu menu, MenuAction action, int param1, int 
 			char sDifficulty[16];
 			menu.GetItem(param2, sDifficulty, sizeof(sDifficulty));
 			UpdateDifficulty(StringToInt(sDifficulty), param1);
-			OpenDifficultyMenu(param1, GetMenuBool(menu, "isadmin"));
+			OpenSetDifficultyMenu(param1, GetMenuBool(menu, "isadmin"));
 		}
 		case MenuAction_Cancel:
 			if (param2 == MenuCancel_ExitBack)
@@ -8160,6 +8216,17 @@ void CompletePackapunch(int punch, int propweapon)
 	g_Machines[punch].inuse = false;
 }
 
+public Action Command_AddDifficulty(int client, int args)
+{
+	OpenAddDifficultyMenu(client);
+	return Plugin_Handled;
+}
+
+void OpenAddDifficultyMenu(int client)
+{
+	if (client) {}
+}
+
 public Action Command_EditDifficulty(int client, int args)
 {
 	OpenEditDifficultyMenu(client);
@@ -8269,6 +8336,17 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 		g_EditDifficulty[client][0] = '\0';
 		OpenEditDifficultyMenu(client);
 	}
+}
+
+public Action Command_DeleteDifficulty(int client, int args)
+{
+	OpenDeleteDifficultyMenu(client);
+	return Plugin_Handled;
+}
+
+void OpenDeleteDifficultyMenu(int client)
+{
+	if (client) {}
 }
 
 public Action Command_SaveDifficulty(int client, int args)
