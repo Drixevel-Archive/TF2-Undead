@@ -1450,6 +1450,8 @@ enum struct ZombieTypes
 	char particle[64];
 	int unlock_wave;
 	bool hidden;
+
+	bool announced;
 }
 
 ZombieTypes g_ZombieTypes[MAX_ZOMBIETYPES];
@@ -2516,6 +2518,9 @@ public Action Timer_RoundTimer(Handle timer)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
 			
+			for (int i = 0; i < g_TotalZombieTypes; i++)
+				g_ZombieTypes[i].announced = false;
+			
 			return Plugin_Continue;
 		}
 
@@ -2573,6 +2578,18 @@ public Action Timer_RoundTimer(Handle timer)
 			
 			if (GetRandomFloat(0.0, 100.0) <= 25.0)
 				g_Match.SetMutation(GetRandomInt(MUTATION_NOWEAPONS, MUTATION_TOTAL));
+			
+			for (int i = 0; i < g_TotalZombieTypes; i++)
+			{
+				if (g_ZombieTypes[i].announced)
+					continue;
+				
+				if (g_ZombieTypes[i].unlock_wave == g_Match.round)
+				{
+					g_ZombieTypes[i].announced = true;
+					CPrintToChatAll("{haunted}%s {default}are now unlocked.", g_ZombieTypes[i].name);
+				}
+			}
 		}
 	}
 
