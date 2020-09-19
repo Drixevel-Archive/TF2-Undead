@@ -258,6 +258,7 @@ enum struct Difficulty
 	float wavespawn_min;
 	float wavespawn_max;
 	float movespeed_multipler;
+	float powerups_spawnrate;
 	int max_zombies;
 	bool admin_only;
 
@@ -279,6 +280,7 @@ enum struct Difficulty
 		kv.SetFloat("wavespawn_min", this.wavespawn_min);
 		kv.SetFloat("wavespawn_max", this.wavespawn_max);
 		kv.SetFloat("movespeed_multipler", this.movespeed_multipler);
+		kv.SetFloat("powerups_spawnrate", this.powerups_spawnrate);
 		kv.SetNum("max_zombies", this.max_zombies);
 		kv.SetNum("admin_only", this.admin_only);
 
@@ -1736,6 +1738,7 @@ void ParseDifficulties()
 			g_Difficulty[g_TotalDifficulties].wavespawn_min = kv.GetFloat("wavespawn_min");
 			g_Difficulty[g_TotalDifficulties].wavespawn_max = kv.GetFloat("wavespawn_max");
 			g_Difficulty[g_TotalDifficulties].movespeed_multipler = kv.GetFloat("movespeed_multipler");
+			g_Difficulty[g_TotalDifficulties].powerups_spawnrate = kv.GetFloat("powerups_spawnrate", -1.0);
 			g_Difficulty[g_TotalDifficulties].max_zombies = kv.GetNum("max_zombies");
 			g_Difficulty[g_TotalDifficulties].admin_only = view_as<bool>(kv.GetNum("admin_only"));
 			g_TotalDifficulties++;
@@ -6908,8 +6911,13 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		EmitGameSoundToAll("BaseExplosionEffect.Sound", entity);
 		noragdoll = true;
 	}
+
+	float chance = g_Difficulty[g_Match.difficulty].powerups_spawnrate;
+
+	if (chance == -1.0)
+		chance = convar_Powerups_Chance.FloatValue;
 	
-	if (powerups && GetRandomFloat(0.0, 100.0) <= convar_Powerups_Chance.FloatValue && (entity <= MaxClients && g_Player[entity].insidemap || entity > MaxClients && g_Zombies[npc.Index].insidemap))
+	if (powerups && GetRandomFloat(0.0, 100.0) <= chance && (entity <= MaxClients && g_Player[entity].insidemap || entity > MaxClients && g_Zombies[npc.Index].insidemap))
 		SpawnPowerup(vecOrigin, -1, true);
 
 	if (entity > MaxClients)
@@ -8319,6 +8327,9 @@ void OpenEditDifficultyMenu(int client)
 	
 	FormatEx(sDisplay, sizeof(sDisplay), "Move Speed Multiplier: %.2f", g_Difficulty[g_Match.difficulty].movespeed_multipler);
 	menu.AddItem("movespeed", sDisplay);
+
+	FormatEx(sDisplay, sizeof(sDisplay), "Powerups Multiplier: %.2f", g_Difficulty[g_Match.difficulty].powerups_spawnrate);
+	menu.AddItem("powerups", sDisplay);
 	
 	FormatEx(sDisplay, sizeof(sDisplay), "Max Zombies: %i", g_Difficulty[g_Match.difficulty].max_zombies);
 	menu.AddItem("maxzombies", sDisplay);
@@ -8379,6 +8390,8 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
 			g_Difficulty[g_Match.difficulty].wavespawn_max = StringToFloat(sValue);
 		else if (StrEqual(g_EditDifficulty[client], "movespeed", false))
 			g_Difficulty[g_Match.difficulty].movespeed_multipler = StringToFloat(sValue);
+		else if (StrEqual(g_EditDifficulty[client], "powerups", false))
+			g_Difficulty[g_Match.difficulty].powerups_spawnrate = StringToFloat(sValue);
 		else if (StrEqual(g_EditDifficulty[client], "maxzombies", false))
 			g_Difficulty[g_Match.difficulty].max_zombies = StringToInt(sValue);
 		else if (StrEqual(g_EditDifficulty[client], "adminonly", false))
