@@ -3390,6 +3390,14 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
 	SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnZombieDamagedPost);
 
+	if (class != 7 && class != 9)
+	{
+		if (class != 4)
+			AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "lefteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
+		
+		AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "righteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
+	}
+
 	int item = -1;
 	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
 	{
