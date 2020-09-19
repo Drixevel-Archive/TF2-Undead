@@ -566,6 +566,8 @@ enum struct Player
 	int bleedtotal;
 	Handle bleedtimer;
 
+	int critstamp;
+
 	void Init(int client)
 	{
 		this.client = client;
@@ -616,6 +618,8 @@ enum struct Player
 
 		delete this.stats;
 		this.stats = new StringMap();
+
+		this.critstamp = -1;
 	}
 
 	void Reset()
@@ -650,6 +654,8 @@ enum struct Player
 		this.stats.Clear();
 
 		this.Clean(false);
+
+		this.critstamp = -1;
 	}
 
 	void Clean(bool handles = true)
@@ -715,6 +721,8 @@ enum struct Player
 
 		this.bleedtotal = 0;
 		this.bleedtimer = null;
+
+		this.critstamp = -1;
 	}
 
 	//attached particles
@@ -3900,8 +3908,19 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 		changed = true;
 	}
 
-	if ((damagetype & DMG_CRIT) == DMG_CRIT)
+	if (IsPlayerIndex(attacker) && (damagetype & DMG_CRIT) == DMG_CRIT)
+		SendCritData(victim, attacker, damagePosition);
+	
+	return changed ? Plugin_Changed : Plugin_Continue;
+}
+
+void SendCritData(int victim, int attacker, float damagePosition[3])
+{
+	int time = GetTime();
+	
+	if (g_Player[attacker].critstamp == -1 || g_Player[attacker].critstamp <= time)
 	{
+		g_Player[attacker].critstamp = time + 1;
 		EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
 		
 		if (attacker > 0 && attacker != victim)
@@ -3910,8 +3929,6 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 			EmitSoundToClient(attacker, "player/crit_hit.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 85);
 		}
 	}
-	
-	return changed ? Plugin_Changed : Plugin_Continue;
 }
 
 public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], float damagePosition[3], int damagecustom)
@@ -4430,16 +4447,7 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 			changed = true;
 		}
 
-		if ((damagetype & DMG_CRIT) == DMG_CRIT)
-		{
-			EmitSoundToClient(attacker, "player/crit_received1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 95);
-			
-			if (attacker > 0 && attacker != victim)
-			{
-				TE_Particle("crit_text", damagePosition);
-				EmitSoundToClient(attacker, "player/crit_hit.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, 85);
-			}
-		}
+		SendCritData(victim, attacker, damagePosition);
 	}
 	
 	if (attacker > 0 && attacker <= MaxClients && GetClientTeam(attacker) == TEAM_ZOMBIES)
