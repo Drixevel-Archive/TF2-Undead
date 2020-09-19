@@ -112,6 +112,7 @@ ConVar convar_LobbyTime;
 ConVar convar_Survivors_BaseHealth;
 ConVar convar_Survivors_BaseHealth_Juggernog;
 
+ConVar convar_Zombies_MovementTicks;
 ConVar convar_Zombies_BaseSpeed;
 ConVar convar_Zombies_Wave_Timer_Min;
 ConVar convar_Zombies_Wave_Timer_Max;
@@ -131,6 +132,8 @@ bool g_Late;
 
 int g_GlowSprite;
 int g_LaserSprite;
+
+Handle g_MovementTimer;
 
 bool g_JustConnected[MAXPLAYERS + 1];
 
@@ -1227,7 +1230,8 @@ enum struct Zombies
 	int class;
 	int type;
 	float speed;
-	ChasePath pPath;
+	PathFollower pPath;
+	//ChasePath pPath;
 	float lastattack;
 	int target;
 	int planktarget;
@@ -1485,6 +1489,8 @@ public void OnPluginStart()
 	convar_Survivors_BaseHealth = CreateConVar("sm_undead_survivors_basehealth", "200.0", "What should the base health for survivors be?", FCVAR_NOTIFY, true, 1.0);
 	convar_Survivors_BaseHealth_Juggernog = CreateConVar("sm_undead_survivors_basehealth_juggernog", "300.0", "What should the base health for survivors be with Juggernog?", FCVAR_NOTIFY, true, 1.0);
 
+	convar_Zombies_MovementTicks = CreateConVar("sm_undead_zombies_movement_ticks", "0.7", "What should the update ticks for zombie movements be?", FCVAR_NOTIFY, true, 0.1);
+	convar_Zombies_MovementTicks.AddChangeHook(OnConVarChanged);
 	convar_Zombies_BaseSpeed = CreateConVar("sm_undead_zombies_basespeed", "100.0", "What should the base speed for the zombies be?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Wave_Timer_Min = CreateConVar("sm_undead_zombies_wave_timer_min", "10.0", "What should the minimum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Wave_Timer_Max = CreateConVar("sm_undead_zombies_wave_timer_max", "15.0", "What should the maximum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
@@ -1495,7 +1501,7 @@ public void OnPluginStart()
 	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Max = CreateConVar("sm_undead_zombies_attack_damage_max", "25.0", "What is the maximum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_BoundingBoxes = CreateConVar("sm_undead_zombies_bounding_boxes", "0.0", "Enable or disable bounding boxes for zombies? (DEBUG)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	
+
 	convar_MysteryBoxPrice = CreateConVar("sm_undead_mystery_box_price", "1500", "The price for the Mystery Box to be used.", FCVAR_NOTIFY, true, 1.0);
 
 	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
@@ -1649,7 +1655,8 @@ public void OnPluginStart()
 	g_Statistics[g_TotalStatistics].CreateStatistic("Doors Opened", "Doors Unlocked", "doors_opened");
 
 	for (int i = 0; i < MAX_NPCS; i++)
-		g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
+		g_Zombies[i].pPath = PathFollower(_, Path_FilterIgnoreActors, Path_FilterOnlyActors);
+		//g_Zombies[i].pPath = ChasePath(LEAD_SUBJECT, INVALID_FUNCTION, Path_FilterIgnoreActors, Path_FilterOnlyActors);
 
 	ParseDifficulties();
 	ParseMachines();
@@ -1684,9 +1691,19 @@ public void OnPluginStart()
 
 	ConVar nb_update_frequency = FindConVar("nb_update_frequency");
 	nb_update_frequency.FloatValue = 0.01;
-	HookConVarChange(nb_update_frequency, Hook_BlockCvarValue);
+	nb_update_frequency.AddChangeHook(Hook_BlockCvarValue);
+}
+
+public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+	if (StrEqual(oldValue, newValue))
+		return;
 	
-	CreateTimer(0.6, Timer_ZombieTicks, _, TIMER_REPEAT);
+	if (convar == convar_Zombies_MovementTicks)
+	{
+		StopTimer(g_MovementTimer);
+		g_MovementTimer = CreateTimer(StringToFloat(newValue), Timer_ZombieTicks, _, TIMER_REPEAT);
+	}
 }
 
 void ParseDifficulties()
@@ -1958,6 +1975,9 @@ public void OnConfigsExecuted()
 		g_Late = false;
 		InitLobby();
 	}
+
+	StopTimer(g_MovementTimer);
+	g_MovementTimer = CreateTimer(convar_Zombies_MovementTicks.FloatValue, Timer_ZombieTicks, _, TIMER_REPEAT);
 }
 
 public void OnPluginEnd()
@@ -3583,7 +3603,7 @@ public Action Timer_ZombieTicks(Handle timer)
 	if (g_Match.pausezombies)
 		return Plugin_Continue;
 	
-	int entity; CBaseNPC npc;
+	int entity; CBaseNPC npc; int target;
 	for (int i = 0; i < MAX_NPCS; i++)
 	{
 		entity = g_Zombies[i].entity;
@@ -3591,6 +3611,28 @@ public Action Timer_ZombieTicks(Handle timer)
 		
 		if (npc == INVALID_NPC)
 			continue;
+		
+		target = g_Zombies[npc.Index].target;
+
+		if (target != -1 && IsClientConnected(target) && IsClientInGame(target) && IsPlayerAlive(target) && GetClientTeam(target) >= 2 && GetClientTeam(target) != npc.iTeamNum)
+		{
+			float endPos[3];
+			GetClientAbsOrigin(target, endPos);
+
+			//float endPos2[3];
+			//endPos2 = PredictSubjectPosition(npc, target);
+
+			//endPos[0] += endPos2[0];
+			//endPos[1] += endPos2[1];
+			//endPos[2] += endPos2[2];
+
+			//PrintToChat(target, "%.2f/%.2f/%.2f", endPos[0], endPos[1], endPos[2]);
+
+			endPos[2] += 10.0;
+
+			g_Zombies[npc.Index].pPath.ComputeToPos(npc.GetBot(), endPos, 9999999999.0);
+			g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(300.0);
+		}
 		
 		float origin[3];
 		CBaseAnimating(entity).WorldSpaceCenter(origin);
@@ -3709,7 +3751,8 @@ public void OnZombieThink(int entity)
 		isonmachine = true;
 	
 	if (GetVectorDistance(vecNPCPos, vecTargetPos) > (convar_Zombies_Hit_Distance.FloatValue * (isonmachine ? 2.0 : 1.0)))
-		g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
+		g_Zombies[npc.Index].pPath.Update(bot);
+		//g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
 	else if (g_Zombies[npc.Index].lastattack <= GetGameTime())
 	{
 		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(convar_Zombies_Attack_Speed_Min.FloatValue, convar_Zombies_Attack_Speed_Max.FloatValue);
@@ -7252,7 +7295,7 @@ void ParseSpecials()
 	LogMessage("Zombies Loaded: %i", g_TotalZombieTypes);
 }
 
-float[] PredictSubjectPosition(CBaseNPC npc, int subject)
+stock float[] PredictSubjectPosition(CBaseNPC npc, int subject)
 {
 	if (!g_Zombies[npc.Index].insidemap)
 		return NULL_VECTOR;
