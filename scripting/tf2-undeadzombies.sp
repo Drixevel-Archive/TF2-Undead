@@ -1730,17 +1730,17 @@ void ParseDifficulties()
 		do
 		{
 			kv.GetSectionName(g_Difficulty[g_TotalDifficulties].name, 64);
-			g_Difficulty[g_TotalDifficulties].damage_multiplier = kv.GetFloat("damage_multiplier");
-			g_Difficulty[g_TotalDifficulties].health_multiplier = kv.GetFloat("health_multiplier");
-			g_Difficulty[g_TotalDifficulties].points_multiplier = kv.GetFloat("points_multiplier");
-			g_Difficulty[g_TotalDifficulties].revive_multiplier = kv.GetFloat("revive_multiplier");
-			g_Difficulty[g_TotalDifficulties].wavespawn_rate = kv.GetFloat("wavespawn_rate");
-			g_Difficulty[g_TotalDifficulties].wavespawn_min = kv.GetFloat("wavespawn_min");
-			g_Difficulty[g_TotalDifficulties].wavespawn_max = kv.GetFloat("wavespawn_max");
-			g_Difficulty[g_TotalDifficulties].movespeed_multipler = kv.GetFloat("movespeed_multipler");
+			g_Difficulty[g_TotalDifficulties].damage_multiplier = kv.GetFloat("damage_multiplier", -1.0);
+			g_Difficulty[g_TotalDifficulties].health_multiplier = kv.GetFloat("health_multiplier", -1.0);
+			g_Difficulty[g_TotalDifficulties].points_multiplier = kv.GetFloat("points_multiplier", -1.0);
+			g_Difficulty[g_TotalDifficulties].revive_multiplier = kv.GetFloat("revive_multiplier", -1.0);
+			g_Difficulty[g_TotalDifficulties].wavespawn_rate = kv.GetFloat("wavespawn_rate", -1.0);
+			g_Difficulty[g_TotalDifficulties].wavespawn_min = kv.GetFloat("wavespawn_min", -1.0);
+			g_Difficulty[g_TotalDifficulties].wavespawn_max = kv.GetFloat("wavespawn_max", -1.0);
+			g_Difficulty[g_TotalDifficulties].movespeed_multipler = kv.GetFloat("movespeed_multipler", -1.0);
 			g_Difficulty[g_TotalDifficulties].powerups_spawnrate = kv.GetFloat("powerups_spawnrate", -1.0);
-			g_Difficulty[g_TotalDifficulties].max_zombies = kv.GetNum("max_zombies");
-			g_Difficulty[g_TotalDifficulties].admin_only = view_as<bool>(kv.GetNum("admin_only"));
+			g_Difficulty[g_TotalDifficulties].max_zombies = kv.GetNum("max_zombies", 99999);
+			g_Difficulty[g_TotalDifficulties].admin_only = view_as<bool>(kv.GetNum("admin_only", 0));
 			g_TotalDifficulties++;
 		}
 		while (kv.GotoNextKey());
