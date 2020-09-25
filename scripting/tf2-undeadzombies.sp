@@ -1544,7 +1544,11 @@ public void OnPluginStart()
 	RegAdminCmd("sm_spawnzombies", Command_SpawnZombie, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_killzombie", Command_KillZombie, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_killspecial", Command_KillSpecial, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_killzombies", Command_KillAllZombies, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_killallzombies", Command_KillAllZombies, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_killspecials", Command_KillAllSpecials, ADMFLAG_GENERIC);
+	RegAdminCmd("sm_killallspecials", Command_KillAllSpecials, ADMFLAG_GENERIC);
 
 	RegAdminCmd("sm_randomzombie", Command_RandomZombie, ADMFLAG_GENERIC);
 	RegAdminCmd("sm_spawnwave", Command_SpawnWave, ADMFLAG_GENERIC);
@@ -3407,13 +3411,13 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
 	SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnZombieDamagedPost);
 
-	if (class != 7 && class != 9)
+	/*if (class != 7 && class != 9)
 	{
 		if (class != 4)
 			AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "lefteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
 		
 		AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "righteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
-	}
+	}*/
 
 	int item = -1;
 	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
@@ -6311,15 +6315,22 @@ void OnDoorTick(int entity)
 //Misc
 /****************************************/
 
-void KillAllZombies()
+void KillAllZombies(bool specials = false)
 {
 	char sZombie[64];
 	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
 
 	int entity = -1; CBaseNPC npc;
 	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
-		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) != INVALID_NPC && g_Zombies[npc.Index].type == GetZombieTypeByName(sZombie))
-			OnZombieDeath(entity);
+	{
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
+			continue;
+		
+		if (!specials && g_Zombies[npc.Index].type != GetZombieTypeByName(sZombie))
+			continue;
+		
+		OnZombieDeath(entity);
+	}
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -7216,10 +7227,33 @@ public Action Command_KillZombie(int client, int args)
 	return Plugin_Handled;
 }
 
+public Action Command_KillSpecial(int client, int args)
+{
+	int entity = GetClientAimTarget(client, false);
+
+	if (!IsValidEntity(entity) || TheNPCs.FindNPCByEntIndex(entity) == INVALID_NPC)
+	{
+		CPrintToChatAll("Please look at a special zombie to kill it.");
+		return Plugin_Handled;
+	}
+
+	OnZombieDeath(entity);
+	CPrintToChatAll("Special zombie has been killed.");
+
+	return Plugin_Handled;
+}
+
 public Action Command_KillAllZombies(int client, int args)
 {
 	KillAllZombies();
 	CPrintToChatAll("{haunted}%N {default}has killed all of the zombies.", client);
+	return Plugin_Handled;
+}
+
+public Action Command_KillAllSpecials(int client, int args)
+{
+	KillAllZombies(true);
+	CPrintToChatAll("{haunted}%N {default}has killed all of the special zombies.", client);
 	return Plugin_Handled;
 }
 
