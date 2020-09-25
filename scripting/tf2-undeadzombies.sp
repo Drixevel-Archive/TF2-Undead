@@ -3411,13 +3411,13 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
 	SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnZombieDamagedPost);
 
-	/*if (class != 7 && class != 9)
+	if (class != 7 && class != 9)
 	{
 		if (class != 4)
 			AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "lefteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
 		
 		AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "righteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
-	}*/
+	}
 
 	int item = -1;
 	if (!g_Match.spawn_robots && (item = EquipZombieItem(entity, "head", sZombieAttachments[class])) != -1)
@@ -5890,7 +5890,13 @@ public Action Timer_MysteryBox(Handle timer, DataPack pack)
 	else if (ticks >= 5.0)
 	{
 		if (phase != 1)
-			TF2_CreateAnnotationToAll(origin, "Weapon Available", 10.0);
+		{
+			float origin2[3];
+			origin2[0] = origin[0];
+			origin2[1] = origin[1];
+			origin2[2] = origin[2];
+			TF2_CreateAnnotationToAll(origin2, "Weapon Available", 10.0);
+		}
 		
 		phase = 1;
 	}
