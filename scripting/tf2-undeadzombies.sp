@@ -117,7 +117,7 @@ ConVar convar_Zombies_BaseSpeed;
 ConVar convar_Zombies_Wave_Timer_Min;
 ConVar convar_Zombies_Wave_Timer_Max;
 ConVar convar_Zombies_Hit_Distance;
-//ConVar convar_Zombies_Face_Distance;
+ConVar convar_Zombies_Face_Distance;
 ConVar convar_Zombies_Attack_Speed_Min;
 ConVar convar_Zombies_Attack_Speed_Max;
 ConVar convar_Zombies_Attack_Damage_Min;
@@ -1470,6 +1470,10 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
+	RegPluginLibrary("undeadzombies");
+
+
+
 	g_Late = late;
 	return APLRes_Success;
 }
@@ -1507,7 +1511,7 @@ public void OnPluginStart()
 	convar_Zombies_Wave_Timer_Min = CreateConVar("sm_undead_zombies_wave_timer_min", "10.0", "What should the minimum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Wave_Timer_Max = CreateConVar("sm_undead_zombies_wave_timer_max", "15.0", "What should the maximum random interval for time be for a wave?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Hit_Distance = CreateConVar("sm_undead_zombies_hit_distance", "75.0", "What is the distance for zombies to hit players?", FCVAR_NOTIFY, true, 1.0);
-	//convar_Zombies_Face_Distance = CreateConVar("sm_undead_zombies_face_distance", "250.0", "What is the distance for zombies to face players?", FCVAR_NOTIFY, true, 1.0);
+	convar_Zombies_Face_Distance = CreateConVar("sm_undead_zombies_face_distance", "250.0", "What is the distance for zombies to face players?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Speed_Min = CreateConVar("sm_undead_zombies_attack_speed_min", "0.4", "What is the minimum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Speed_Max = CreateConVar("sm_undead_zombies_attack_speed_max", "0.7", "What is the maximum amount of speed zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
@@ -3671,7 +3675,7 @@ public Action Timer_ZombieTicks(Handle timer)
 			endPos[2] += 10.0;
 
 			g_Zombies[npc.Index].pPath.ComputeToPos(npc.GetBot(), endPos, 9999999999.0);
-			g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(300.0);
+			g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(convar_Zombies_Face_Distance.FloatValue);
 		}
 		
 		float origin[3];
