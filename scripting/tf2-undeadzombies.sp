@@ -6703,13 +6703,13 @@ void OpenMainMenu(int client)
 	Menu menu = new Menu(MenuHandler_Main);
 	menu.SetTitle("[Gamemode] Undead Zombies");
 
-	menu.AddItem("statistics", "Your Undead Statistics");
-	menu.AddItem("weapons", "View Custom Weapons Info");
-	menu.AddItem("info", "What is this gamemode?");
-	menu.AddItem("type", "What are the types of zombies?");
-	menu.AddItem("machines", "What do the Machines do?");
-	menu.AddItem("powerups", "What do the Powerups do?");
-	menu.AddItem("mystery_box", "What does the Mystery Box do?");
+	menu.AddItem("statistics", "Undead Stats");
+	menu.AddItem("info", "Basic Info");
+	menu.AddItem("weapons", "Weapons Info");
+	menu.AddItem("type", "Zombie Types List");
+	menu.AddItem("machines", "Machines List");
+	menu.AddItem("powerups", "Available Powerups");
+	menu.AddItem("mystery_box", "Mystery Box Info");
 
 	menu.Display(client, MENU_TIME_FOREVER);
 }
