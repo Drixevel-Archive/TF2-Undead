@@ -92,6 +92,8 @@
 /*****************************/
 //ConVars
 
+ConVar convar_RoundTime;
+
 ConVar convar_PlayableZombies;
 ConVar convar_Ragdolls;
 ConVar convar_BloodFx;
@@ -1486,6 +1488,8 @@ public void OnPluginStart()
 	Database.Connect(OnSQLConnect, "default");
 
 	//ConVars
+	convar_RoundTime = CreateConVar("sm_undead_round_time", "120", "What should the round time be?", FCVAR_NOTIFY, true, 0.0);
+
 	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -2517,7 +2521,7 @@ public Action Timer_RoundTimer(Handle timer)
 			g_WaveTime = GetWaveTime();
 			g_WaveTimer = CreateTimer(1.0, Timer_SpawnWave, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
-			g_Match.roundtime = 120;
+			g_Match.roundtime = convar_RoundTime.IntValue;
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
 
@@ -2557,7 +2561,7 @@ public Action Timer_RoundTimer(Handle timer)
 
 		case PHASE_WAITING:
 		{
-			g_Match.roundtime = 120;
+			g_Match.roundtime = convar_RoundTime.IntValue;
 			g_Match.roundphase = PHASE_ACTIVE;
 			EmitSoundToAll("undead/round_start.wav");
 			g_Match.round++;
