@@ -2591,7 +2591,7 @@ public Action Timer_RoundTimer(Handle timer)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
 			
-			if (g_Match.round % 5 == 1)
+			if ((g_Match.round - 1) % 5 == 1)
 				g_Match.SetMutation(MUTATION_ONESPECIALONLY);
 			else if (GetRandomFloat(0.0, 100.0) <= 25.0)
 				g_Match.SetMutation(GetRandomInt(MUTATION_NOWEAPONS, MUTATION_TOTAL));
