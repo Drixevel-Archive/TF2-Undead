@@ -443,6 +443,7 @@ enum struct Match
 				case MUTATION_BOSSFIGHT:
 					strcopy(sMutation, sizeof(sMutation), "Boss Fight");
 			}
+
 			CPrintToChatAll("Mutation Round! Mutation {haunted}%s {default}is active!", sMutation);
 
 			switch (mutation)
@@ -2584,7 +2585,9 @@ public Action Timer_RoundTimer(Handle timer)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
 			
-			if (GetRandomFloat(0.0, 100.0) <= 25.0)
+			if (g_Match.round % 5 == 1)
+				g_Match.SetMutation(MUTATION_ONESPECIALONLY);
+			else if (GetRandomFloat(0.0, 100.0) <= 25.0)
 				g_Match.SetMutation(GetRandomInt(MUTATION_NOWEAPONS, MUTATION_TOTAL));
 			
 			for (int i = 0; i < g_TotalZombieTypes; i++)
