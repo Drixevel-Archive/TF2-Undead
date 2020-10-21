@@ -95,6 +95,9 @@
 ConVar convar_RoundTime;
 ConVar convar_WaitTime;
 
+ConVar convar_FireSale_Chance;
+ConVar convar_FireSale_Discount;
+
 ConVar convar_PlayableZombies;
 ConVar convar_Ragdolls;
 ConVar convar_BloodFx;
@@ -319,6 +322,8 @@ enum struct Match
 	int mutation;
 	int mutation_special;
 
+	bool firesale;
+
 	void Init()
 	{
 		char sDifficulty[64];
@@ -345,6 +350,8 @@ enum struct Match
 		char sZombie[64];
 		convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
 		this.mutation_special = GetZombieTypeByName(sZombie);
+
+		this.firesale = false;
 	}
 
 	void Reset()
@@ -388,6 +395,8 @@ enum struct Match
 		
 		if ((secret = FindEntityByName("secret3_lock", "logic_relay")) != -1)
 			AcceptEntityInput(secret, "Trigger");
+		
+		this.firesale = false;
 	}
 
 	void PauseZombies()
@@ -1492,6 +1501,9 @@ public void OnPluginStart()
 	convar_RoundTime = CreateConVar("sm_undead_round_time", "120", "What should the round time be?", FCVAR_NOTIFY, true, 0.0);
 	convar_WaitTime = CreateConVar("sm_undead_wait_time", "30", "What should the wait time be between rounds?", FCVAR_NOTIFY, true, 0.0);
 
+	convar_FireSale_Chance = CreateConVar("sm_undead_firesale_chance", "2", "What should the chance of a fire sale happening be?", FCVAR_NOTIFY, true, 0.0);
+	convar_FireSale_Discount = CreateConVar("sm_undead_wait_time", "0.02", "What should the discount for fire sales be?", FCVAR_NOTIFY, true, 0.0);
+
 	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -2031,6 +2043,8 @@ public void OnMapStart()
 	g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
 	g_LaserSprite = PrecacheModel("sprites/laser.vmt");
 
+	PrecacheSound("weapons/flame_thrower_fire_hitloop.wav");
+
 	//Lobby Sounds
 	PrecacheSound(SOUND_LOBBY);
 
@@ -2559,6 +2573,8 @@ public Action Timer_RoundTimer(Handle timer)
 			TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
 
 			g_Match.SetMutation(MUTATION_NONE);
+
+			g_Match.firesale = false;
 		}
 
 		case PHASE_WAITING:
@@ -2606,6 +2622,13 @@ public Action Timer_RoundTimer(Handle timer)
 					g_ZombieTypes[i].announced = true;
 					CPrintToChatAll("{haunted}%s {default}are now unlocked.", g_ZombieTypes[i].name);
 				}
+			}
+
+			if (GetRandomFloat(0.0, 100.0) <= convar_FireSale_Chance.FloatValue)
+			{
+				g_Match.firesale = true;
+				CPrintToChatAll("{haunted}Fire Sale {default}is now active, discount mystery box purchases!");
+				EmitSoundToAll("weapons/flame_thrower_fire_hitloop.wav");
 			}
 		}
 	}
@@ -4923,6 +4946,9 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 
 		int price = CalculatePrice(client, g_MysteryBox[entity].price);
 
+		if (g_Match.firesale)
+			price = RoundFloat(float(price) * convar_FireSale_Discount.FloatValue);
+
 		if (!g_Player[client].RemovePoints(price))
 		{
 			SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
@@ -5785,6 +5811,7 @@ void OnMysteryBoxTick(int entity)
 		return;
 	
 	int unlock = g_MysteryBox[entity].unlock;
+	int price;
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -5796,9 +5823,13 @@ void OnMysteryBoxTick(int entity)
 			if (unlock <= g_Match.round + 1)
 			{
 				g_Player[i].nearinteractable = entity;
+				price = CalculatePrice(i, g_MysteryBox[entity].price);
+
+				if (g_Match.firesale)
+					price = RoundFloat(float(price) * convar_FireSale_Discount.FloatValue);
 
 				g_Sync_NearInteractable.SetParams(-1.0, 0.2, 2.0, 255, 255, 255, 255);
-				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this mystery box for %i points!", CalculatePrice(i, g_MysteryBox[entity].price));
+				g_Sync_NearInteractable.Send(i, "Press 'MEDIC!' to open this mystery box for %i points!", price);
 			}
 			else
 			{
