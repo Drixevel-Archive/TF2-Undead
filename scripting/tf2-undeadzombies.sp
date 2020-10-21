@@ -93,6 +93,7 @@
 //ConVars
 
 ConVar convar_RoundTime;
+ConVar convar_WaitTime;
 
 ConVar convar_PlayableZombies;
 ConVar convar_Ragdolls;
@@ -1489,6 +1490,7 @@ public void OnPluginStart()
 
 	//ConVars
 	convar_RoundTime = CreateConVar("sm_undead_round_time", "120", "What should the round time be?", FCVAR_NOTIFY, true, 0.0);
+	convar_WaitTime = CreateConVar("sm_undead_wait_time", "30", "What should the wait time be between rounds?", FCVAR_NOTIFY, true, 0.0);
 
 	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -2541,7 +2543,7 @@ public Action Timer_RoundTimer(Handle timer)
 		{
 			KillAllZombies();
 
-			g_Match.roundtime = 30;
+			g_Match.roundtime = convar_WaitTime.IntValue;
 			g_Match.roundphase = PHASE_WAITING;
 			EmitSoundToAll("undead/round_end.wav");
 
