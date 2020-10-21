@@ -1462,6 +1462,7 @@ enum struct ZombieTypes
 	char death_sound[PLATFORM_MAX_PATH];
 	char particle[64];
 	int unlock_wave;
+	int limit;
 	bool hidden;
 
 	bool announced;
@@ -3096,7 +3097,7 @@ public void OnEntityDestroyed(int entity)
 
 public Action Command_RandomZombie(int client, int args)
 {
-	SpawnRandomZombie();
+	SpawnRandomZombie(-1, false);
 	CPrintToChat(client, "A random zombie has been spawned.");
 	return Plugin_Handled;
 }
@@ -3256,7 +3257,7 @@ public Action Command_SpawnZombie(int client, int args)
 	float origin[3];
 	GetClientLookOrigin(client, origin);
 
-	SpawnZombie(origin, special);
+	SpawnZombie(origin, special, false);
 	CPrintToChat(client, "You have spawned a {haunted}%s {normal}zombie.", sType);
 
 	return Plugin_Handled;
@@ -3291,7 +3292,7 @@ public int MenuHandler_Zombies(Menu menu, MenuAction action, int param1, int par
 
 			float look[3];
 			GetClientLookOrigin(param1, look);
-			SpawnZombie(look, StringToInt(sID));
+			SpawnZombie(look, StringToInt(sID), false);
 
 			OpenZombiesMenu(param1);
 		}
@@ -3301,13 +3302,13 @@ public int MenuHandler_Zombies(Menu menu, MenuAction action, int param1, int par
 	}
 }
 
-CBaseNPC SpawnRandomZombie(int special = -1)
+CBaseNPC SpawnRandomZombie(int special = -1, bool limitcheck = true)
 {
 	float origin[3];
 	GetRandomSpawn(origin);
 
 	GetGroundCoordinates(origin, origin);
-	CBaseNPC npc = SpawnZombie(origin, special);
+	CBaseNPC npc = SpawnZombie(origin, special, limitcheck);
 
 	return npc;
 }
@@ -3406,7 +3407,7 @@ void ApplySpecialUpdates(int client, int special, float origin[3])
 		g_Player[client].AttachBuilding("obj_dispenser", origin);
 }
 
-CBaseNPC SpawnZombie(float origin[3], int special = -1)
+CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 {
 	int count = GetEntityCountEx("base_boss");
 	
@@ -3420,6 +3421,8 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1)
 	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
 
 	if (special == -1)
+		special = GetZombieTypeByName(sZombie);
+	else if (limitcheck && g_ZombieTypes[special].limit != -1 && GetZombieCount(special) >= g_ZombieTypes[special].limit)
 		special = GetZombieTypeByName(sZombie);
 	
 	origin[2] += 10.0;
@@ -7410,6 +7413,7 @@ void ParseSpecials()
 			kv.GetString("death_sound", g_ZombieTypes[g_TotalZombieTypes].death_sound, PLATFORM_MAX_PATH);
 			kv.GetString("particle", g_ZombieTypes[g_TotalZombieTypes].particle, 64);
 			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave", -1);
+			g_ZombieTypes[g_TotalZombieTypes].limit = kv.GetNum("limit", -1);
 			g_ZombieTypes[g_TotalZombieTypes].hidden = view_as<bool>(kv.GetNum("hidden", 0));
 			g_TotalZombieTypes++;
 		}
@@ -8535,4 +8539,23 @@ int CalculatePrice(int client, int price)
 		price = RoundFloat(float(price) * 1.25);
 	
 	return price;
+}
+
+int GetZombieCount(int special = -1)
+{
+	int count;
+
+	int entity = -1; CBaseNPC npc;
+	while ((entity = FindEntityByClassname(entity, "base_boss")) != -1)
+	{
+		if ((npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
+			continue;
+		
+		if (special != -1 && g_Zombies[npc.Index].type != special)
+			continue;
+		
+		count++;
+	}
+
+	return count;
 }
