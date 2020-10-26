@@ -118,6 +118,7 @@ ConVar convar_LobbyTime;
 ConVar convar_Survivors_BaseHealth;
 ConVar convar_Survivors_BaseHealth_Juggernog;
 
+ConVar convar_Zombies_EyeParticles;
 ConVar convar_Zombies_MaxHealth;
 ConVar convar_Zombies_MovementTicks;
 ConVar convar_Zombies_BaseSpeed;
@@ -1526,6 +1527,7 @@ public void OnPluginStart()
 	convar_Survivors_BaseHealth = CreateConVar("sm_undead_survivors_basehealth", "200.0", "What should the base health for survivors be?", FCVAR_NOTIFY, true, 1.0);
 	convar_Survivors_BaseHealth_Juggernog = CreateConVar("sm_undead_survivors_basehealth_juggernog", "300.0", "What should the base health for survivors be with Juggernog?", FCVAR_NOTIFY, true, 1.0);
 
+	convar_Zombies_EyeParticles = CreateConVar("sm_undead_zombies_eye_particles", "0", "Should the zombies have eye particles?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Zombies_MaxHealth = CreateConVar("sm_undead_zombies_max_health", "15000", "What should the max health for zombies be?", FCVAR_NOTIFY, true, 0.1);
 	convar_Zombies_MovementTicks = CreateConVar("sm_undead_zombies_movement_ticks", "0.7", "What should the update ticks for zombie movements be?", FCVAR_NOTIFY, true, 0.1);
 	convar_Zombies_MovementTicks.AddChangeHook(OnConVarChanged);
@@ -3456,7 +3458,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
 	SDKHook(entity, SDKHook_OnTakeDamageAlivePost, OnZombieDamagedPost);
 
-	if (class != 7 && class != 9)
+	if (convar_Zombies_EyeParticles.BoolValue && class != 7 && class != 9)
 	{
 		if (class != 4)
 			AttachParticle(entity, "eye_powerup_red_lvl_4", 0.0, "lefteye", view_as<float>({0.0, 0.0, 0.0}), view_as<float>({2.0, 0.0, 0.0}));
