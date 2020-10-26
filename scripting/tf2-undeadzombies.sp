@@ -118,6 +118,7 @@ ConVar convar_LobbyTime;
 ConVar convar_Survivors_BaseHealth;
 ConVar convar_Survivors_BaseHealth_Juggernog;
 
+ConVar convar_Zombies_MaxHealth;
 ConVar convar_Zombies_MovementTicks;
 ConVar convar_Zombies_BaseSpeed;
 ConVar convar_Zombies_Wave_Timer_Min;
@@ -1525,6 +1526,7 @@ public void OnPluginStart()
 	convar_Survivors_BaseHealth = CreateConVar("sm_undead_survivors_basehealth", "200.0", "What should the base health for survivors be?", FCVAR_NOTIFY, true, 1.0);
 	convar_Survivors_BaseHealth_Juggernog = CreateConVar("sm_undead_survivors_basehealth_juggernog", "300.0", "What should the base health for survivors be with Juggernog?", FCVAR_NOTIFY, true, 1.0);
 
+	convar_Zombies_MaxHealth = CreateConVar("sm_undead_zombies_max_health", "15000", "What should the max health for zombies be?", FCVAR_NOTIFY, true, 0.1);
 	convar_Zombies_MovementTicks = CreateConVar("sm_undead_zombies_movement_ticks", "0.7", "What should the update ticks for zombie movements be?", FCVAR_NOTIFY, true, 0.1);
 	convar_Zombies_MovementTicks.AddChangeHook(OnConVarChanged);
 	convar_Zombies_BaseSpeed = CreateConVar("sm_undead_zombies_basespeed", "100.0", "What should the base speed for the zombies be?", FCVAR_NOTIFY, true, 1.0);
@@ -7565,6 +7567,12 @@ int CalculateHealth(int entity)
 
 	if (g_Match.mutation == MUTATION_MOREHEALTH)
 		health *= 1.2;
+	
+	if (health > convar_Zombies_MaxHealth.IntValue)
+	{
+		LogError("Max health for zombie reached past %i: %i", convar_Zombies_MaxHealth.IntValue, health);
+		health = convar_Zombies_MaxHealth.IntValue;
+	}
 	
 	return health;
 }
