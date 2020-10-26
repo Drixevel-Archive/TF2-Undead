@@ -2575,6 +2575,9 @@ public Action Timer_RoundTimer(Handle timer)
 
 			TriggerTimer(CreateTimer(36.0, Timer_LobbySound, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE));
 
+			if (g_Match.mutation == MUTATION_MOREHEALTH)
+				KillAllZombies(true);
+
 			g_Match.SetMutation(MUTATION_NONE);
 
 			g_Match.firesale = false;
