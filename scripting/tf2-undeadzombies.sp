@@ -2047,6 +2047,7 @@ public void OnMapStart()
 	g_LaserSprite = PrecacheModel("sprites/laser.vmt");
 
 	PrecacheSound("weapons/flame_thrower_fire_hitloop.wav");
+	PrecacheSound("buttons/blip1.wav");
 
 	//Lobby Sounds
 	PrecacheSound(SOUND_LOBBY);
@@ -6430,8 +6431,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			float time = GetGameTime();
 			if (g_Player[client].delayhint == -1.0 || g_Player[client].delayhint != -1.0 && g_Player[client].delayhint <= time)
 			{
-				PrintHintText(client, "Reviving %N...", iOwner);
-				g_Player[client].delayhint = time + 0.2;
+				PrintCenterText(client, "Reviving %N...", iOwner);
+				PrintCenterText(iOwner, "%N is reviving you...", client);
+
+				EmitSoundToAll("buttons/blip1.wav", client);
+
+				g_Player[client].delayhint = time + 1.0;
 			}
 
 			SetEntProp(entity, Prop_Send, "m_iHealth", iHealth + 1);
@@ -6481,7 +6486,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 				g_Player[iOwner].revivemarker = INVALID_ENT_REFERENCE;
 
-				PrintHintText(client, "%N has been respawned!", iOwner);
+				PrintCenterText(client, "%N has been respawned!", iOwner);
 
 				if (IsPlayerIndex(client))
 					g_Player[client].AddStat(STAT_REVIVES, 1);
