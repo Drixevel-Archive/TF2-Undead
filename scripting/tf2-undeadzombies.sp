@@ -1399,6 +1399,7 @@ enum struct CustomWeaponsData
 	char name[64];
 	float offset_angles[3];
 	bool mystery_box;
+	float chance;
 }
 
 CustomWeaponsData g_CustomWeapons[MAX_WEAPONS];
@@ -5307,6 +5308,7 @@ void ParseWeapons()
 			g_CustomWeapons[g_TotalCustomWeapons].name[0] = CharToUpper(g_CustomWeapons[g_TotalCustomWeapons].name[0]);
 			kv.GetVector("offset_angles", g_CustomWeapons[g_TotalCustomWeapons].offset_angles);
 			g_CustomWeapons[g_TotalCustomWeapons].mystery_box = view_as<bool>(kv.GetNum("mystery_box"));
+			g_CustomWeapons[g_TotalCustomWeapons].chance = kv.GetFloat("chance", 100.0);
 			g_TotalCustomWeapons++;
 		}
 		while (kv.GotoNextKey());
@@ -6037,13 +6039,16 @@ int GetRandomMysteryWeapon(int client)
 	char sClasses[2048];
 	for (int i = 0; i <= g_TotalCustomWeapons; i++)
 	{
-		if (g_CustomWeapons[i].mystery_box)
-		{
-			TF2Items_GetItemKeyString(g_CustomWeapons[i].name, "classes", sClasses, sizeof(sClasses));
+		if (!g_CustomWeapons[i].mystery_box)
+			continue;
+		
+		if (GetRandomFloat(0.0, 100.0) > g_CustomWeapons[i].chance)
+			continue;
+		
+		TF2Items_GetItemKeyString(g_CustomWeapons[i].name, "classes", sClasses, sizeof(sClasses));
 
-			if (StrContains(sClasses, sClass, false) != -1)
-				indexes[total++] = i;
-		}
+		if (StrContains(sClasses, sClass, false) != -1)
+			indexes[total++] = i;
 	}
 	
 	return (total == 0) ? -1 : indexes[GetRandomInt(0, total - 1)];
