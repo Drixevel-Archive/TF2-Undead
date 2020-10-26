@@ -3813,7 +3813,7 @@ public void OnZombieThink(int entity)
 
 	int target = g_Zombies[npc.Index].target;
 
-	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) < 2 || GetClientTeam(target) == npc.iTeamNum)
+	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) < 2 || GetClientTeam(target) == npc.iTeamNum || GetEntityMoveType(target) == MOVETYPE_NOCLIP)
 		g_Zombies[npc.Index].target = GetZombieTarget();
 	
 	target = g_Zombies[npc.Index].target;
@@ -3946,7 +3946,7 @@ int GetZombieTarget()
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS)
+		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS || GetEntityMoveType(i) == MOVETYPE_NOCLIP)
 			continue;
 		
 		clients[amount++] = i;
