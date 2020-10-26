@@ -7538,6 +7538,8 @@ float CalculateSpeed(int special)
 	if (g_Match.mutation == MUTATION_LIGHTNINGROUND)
 		speed *= 1.5;
 	
+	speed *= GetRandomFloat(0.9, 1.1);
+	
 	//PrintToDrixevel("Zombie Speed: %.2f", speed);
 	return speed;
 }
