@@ -5,8 +5,8 @@
 
 /*****************************/
 //Defines
-#define PLUGIN_NAME "[TF2] Undead Zombies"
-#define PLUGIN_DESCRIPTION "Undead Zombies is a gamemode which pits players vs AI and player controlled zombies."
+#define PLUGIN_NAME "[TF2] Undead"
+#define PLUGIN_DESCRIPTION "Undead is a gamemode which pits players vs AI and player controlled zombies."
 #define PLUGIN_VERSION "1.0.5"
 
 #define EF_NODRAW 0x020
@@ -3665,25 +3665,25 @@ int GetZombieTypeByName(const char[] name)
 	return -1;
 }
 
-int TF2_AttachProp(int iClient, const char[] model)
+int TF2_AttachProp(int client, const char[] model)
 {
-	int iLink = CreateEntityByName("tf_taunt_prop");
+	int link = CreateEntityByName("tf_taunt_prop");
 
-	if (!IsValidEntity(iLink))
+	if (!IsValidEntity(link))
 		return -1;
 	
-	DispatchSpawn(iLink); 
+	DispatchSpawn(link); 
 	
-	SetEntityModel(iLink, model);
-	SetEntProp(iLink, Prop_Send, "m_fEffects", 16 | 64);
+	SetEntityModel(link, model);
+	SetEntProp(link, Prop_Send, "m_fEffects", 16 | 64);
 	
 	SetVariantString("!activator"); 
-	AcceptEntityInput(iLink, "SetParent", iClient); 
+	AcceptEntityInput(link, "SetParent", client); 
 	
 	SetVariantString("head");
-	AcceptEntityInput(iLink, "SetParentAttachment", iClient);
+	AcceptEntityInput(link, "SetParentAttachment", client);
 	
-	return iLink;
+	return link;
 }
 
 public Action Timer_ZombieTicks(Handle timer)
