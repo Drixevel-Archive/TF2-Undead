@@ -6815,6 +6815,9 @@ public bool TraceFilter2(int entity, int contentsMask, any data)
 
 void RecomputeNavs()
 {
+	if (!IsValidEntity(0))
+		return;
+	
 	int entity = CreateEntityByName("tf_point_nav_interface");
 
 	if (!IsValidEntity(entity))
@@ -8680,7 +8683,7 @@ public void OnLibraryAdded(const char[] name)
 
 void Initialize()
 {
-	Handle hGameData = LoadGameConfigFile("customkeyvalues.games");
+	Handle hGameData = LoadGameConfigFile("undead.gamedata");
 	
 	if (hGameData == null)
 		return;
