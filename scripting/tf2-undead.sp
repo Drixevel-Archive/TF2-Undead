@@ -364,7 +364,7 @@ enum struct Match
 		this.roundtime = 0;
 		StopTimer(this.roundtimer);
 		this.roundphase = PHASE_HIBERNATION;
-		delete this.hud_timer;
+		//delete this.hud_timer;
 		this.round = 0;
 		
 		this.pausetimer = false;
@@ -1893,10 +1893,12 @@ public Action OnRelayTrigger(const char[] output, int caller, int activator, flo
 	else if (StrContains(sName, "secret3_lock", false) != -1)
 		g_Match.bomb_heads = false;*/
 }
+
 #define TARGET_ENABLE 0
 #define TARGET_DISABLE 1
 #define TARGET_KILL 2
 #define TARGET_CREATE 3
+
 public Action OnInfoTargetFire(const char[] output, int caller, int activator, float delay)
 {
 	if (StrEqual(output, "FireUser1", false))
@@ -2560,6 +2562,9 @@ public Action Timer_RoundTimer(Handle timer)
 	{
 		case PHASE_STARTING:
 		{
+			for (int i = 0; i < g_TotalZombieTypes; i++)
+				g_ZombieTypes[i].announced = false;
+			
 			for (int i = 1; i <= MaxClients; i++)
 			{
 				if (!IsClientInGame(i))
@@ -2620,9 +2625,6 @@ public Action Timer_RoundTimer(Handle timer)
 			for (int i = 1; i <= MaxClients; i++)
 				if (IsClientInGame(i))
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
-			
-			for (int i = 0; i < g_TotalZombieTypes; i++)
-				g_ZombieTypes[i].announced = false;
 			
 			return Plugin_Continue;
 		}
@@ -7950,7 +7952,7 @@ public int MenuHandler_Statistics(Menu menu, MenuAction action, int param1, int 
 void ShowGlobalStatistics(int client)
 {
 	char sSteamID[64];
-	if (!GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
+	if (!GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID)) || g_Database == null)
 		return;
 	
 	char sQuery[512];
@@ -7961,7 +7963,7 @@ void ShowGlobalStatistics(int client)
 void ShowServerStatistics(int client)
 {
 	char sSteamID[64];
-	if (!GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID)))
+	if (!GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID)) || g_Database == null)
 		return;
 	
 	char sServerIP[64];
