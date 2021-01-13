@@ -337,7 +337,7 @@ enum struct Match
 		this.hud_timer = null;
 		this.round = 0;
 		
-		this.pausetimer = false;
+		this.pausetimer = true;
 		this.pausezombies = false;
 
 		this.secret_door_unlocked = false;
@@ -7074,6 +7074,18 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 	float vecAngles[3];
 	GetEntityAngles(entity, vecAngles);
 
+	float vecVelocity[3];
+	if (attacker > 0)
+	{
+		float vecOrigin2[3];
+		GetClientAbsOrigin(attacker, vecOrigin2);
+
+		MakeVectorFromPoints(vecOrigin2, vecOrigin, vecVelocity);
+
+		NormalizeVector(vecVelocity, vecVelocity);
+		ScaleVector(vecVelocity, 1000.0);
+	}
+
 	if (strlen(g_Zombies[npc.Index].death_sound) > 0)
 		EmitSoundToAll(g_Zombies[npc.Index].death_sound, entity);
 
@@ -7112,7 +7124,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		{
 			char sModel[PLATFORM_MAX_PATH];
 			GetEntPropString(entity, Prop_Data, "m_ModelName", sModel, sizeof(sModel));
-			CreateRagdoll(entity, vecOrigin, vecAngles, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
+			CreateRagdoll(entity, vecOrigin, vecAngles, vecVelocity, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
 		}
 
 		AcceptEntityInput(entity, "Kill");
@@ -7132,17 +7144,19 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 	}
 }
 
-void CreateRagdoll(int entity, float origin[3], float angles[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0, bool dissolve = false)
+void CreateRagdoll(int entity, float origin[3], float angles[3], float velocity[3], const char[] model, int skin, int team, const char[] attachment, float lifetime = 5.0, bool dissolve = false)
 {
 	if (!convar_Ragdolls.BoolValue || g_Match.spawn_robots)
 		return;
-	
-	int ragdoll = CreateEntityByName("prop_ragdoll");
+	if (velocity[0]) {}
+	int ragdoll = CreateEntityByName("physics_prop_ragdoll");
 
 	if (IsValidEntity(ragdoll))
 	{
 		DispatchKeyValueVector(ragdoll, "origin", origin);
 		DispatchKeyValueVector(ragdoll, "angles", angles);
+		DispatchKeyValueVector(ragdoll, "basevelocity", velocity);
+		DispatchKeyValueVector(ragdoll, "velocity", velocity);
 		DispatchKeyValue(ragdoll, "model", model);
 		DispatchKeyValue(ragdoll, "spawnflags", "4");
 
@@ -7155,6 +7169,8 @@ void CreateRagdoll(int entity, float origin[3], float angles[3], const char[] mo
 		DispatchKeyValue(ragdoll, "TeamNum", sTeam);
 
 		DispatchSpawn(ragdoll);
+
+		TeleportEntity(ragdoll, NULL_VECTOR, NULL_VECTOR, velocity);
 
 		if (strlen(attachment) > 0)
 		{
