@@ -9,6 +9,8 @@
 #define PLUGIN_DESCRIPTION "Undead is a gamemode which pits players vs AI and player controlled zombies."
 #define PLUGIN_VERSION "1.0.5"
 
+//#define DEBUG
+
 #define EF_NODRAW 0x020
 
 #define PHASE_HIBERNATION 0
@@ -78,6 +80,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <sdkhooks>
+#include <customkeyvalues>
 
 #include <misc-sm>
 #include <misc-tf>
@@ -337,8 +340,13 @@ enum struct Match
 		this.hud_timer = null;
 		this.round = 0;
 		
+		#if defined DEBUG
 		this.pausetimer = true;
+		this.pausezombies = true;
+		#else
+		this.pausetimer = false;
 		this.pausezombies = false;
+		#endif
 
 		this.secret_door_unlocked = false;
 		this.bomb_heads = false;
@@ -1099,6 +1107,7 @@ enum struct Player
 			//DispatchKeyValueVector(this.building, "angles", Angle);
 			DispatchKeyValue(this.building, "defaultupgrade", "0");
 			DispatchKeyValue(this.building, "spawnflags", "4");
+			DispatchKeyValue(this.building, "solid", "0");
 			SetEntProp(this.building, Prop_Send, "m_bBuilding", 1);
 			DispatchSpawn(this.building);
 
@@ -1473,72 +1482,6 @@ enum struct ZombieTypes
 ZombieTypes g_ZombieTypes[MAX_ZOMBIETYPES];
 int g_TotalZombieTypes;
 
-methodmap EntityMap < StringMap
-{
-	public EntityMap()
-	{
-		return view_as<EntityMap>( new StringMap() );
-	}
-	public bool GetEntityValue( int entity, const char[] key, char[] value, int maxlen )
-	{
-		if (entity > -1)
-			entity = EntIndexToEntRef( entity );
-		
-		char refstring[8];
-		IntToString( entity, refstring, sizeof(refstring) );
-	
-		StringMap keyvals;
-		if( !this.GetValue( refstring, keyvals ) )
-		{
-			return false;
-		}
-		
-		return keyvals.GetString( key, value, maxlen );
-	}
-	public bool SetEntityValue( int entity, const char[] key, const char[] value, bool replace = true )
-	{
-		if (entity > -1)
-			entity = EntIndexToEntRef( entity );
-		
-		char refstring[8];
-		IntToString( entity, refstring, sizeof(refstring) );
-	
-		StringMap keyvals;
-		if( !this.GetValue( refstring, keyvals ) )
-		{
-			keyvals = new StringMap();
-			if( !this.SetValue( refstring, keyvals ) )
-			{
-				return false;
-			}
-		}
-		
-		return keyvals.SetString( key, value, replace );
-	}
-	public void Close()
-	{
-		StringMapSnapshot snapshot = this.Snapshot();
-		
-		int len = snapshot.Length;
-		for( int i = 0; i < len; i++ )
-		{
-			char key[128];
-			snapshot.GetKey( i, key, sizeof(key) );
-			
-			StringMap sm;
-			if( this.GetValue( key, sm ) )
-			{
-				delete sm;
-			}
-		}
-		
-		delete this;
-	}
-}
-
-EntityMap g_EntityKeyValues;
-Handle g_hOnKeyValue;
-
 /*****************************/
 //Plugin Info
 public Plugin myinfo = 
@@ -1564,16 +1507,13 @@ public void OnPluginStart()
 {
 	LoadTranslations("common.phrases");
 	CSetPrefix("{haunted}[{lawngreen}Undead{haunted}]");
-	Database.Connect(OnSQLConnect, "default");
-
-	g_EntityKeyValues = new EntityMap();
 
 	//ConVars
 	convar_RoundTime = CreateConVar("sm_undead_round_time", "120", "What should the round time be?", FCVAR_NOTIFY, true, 0.0);
 	convar_WaitTime = CreateConVar("sm_undead_wait_time", "30", "What should the wait time be between rounds?", FCVAR_NOTIFY, true, 0.0);
 
 	convar_FireSale_Chance = CreateConVar("sm_undead_firesale_chance", "2", "What should the chance of a fire sale happening be?", FCVAR_NOTIFY, true, 0.0);
-	convar_FireSale_Discount = CreateConVar("sm_undead_wait_time", "0.02", "What should the discount for fire sales be?", FCVAR_NOTIFY, true, 0.0);
+	convar_FireSale_Discount = CreateConVar("sm_undead_firesale_discount", "0.02", "What should the discount for fire sales be?", FCVAR_NOTIFY, true, 0.0);
 
 	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -1696,16 +1636,13 @@ public void OnPluginStart()
 	AddCommandListener(Listener_VoiceMenu, "voicemenu");
 
 	Handle hGameConf = LoadGameConfigFile("undead.gamedata");
-
 	int offset = GameConfGetOffset(hGameConf, "CObjectDispenser::DispenseMetal");
-
 	delete hGameConf;
 
 	g_BlockDispenserMetal = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, DispenseMetal);
 	DHookAddParam(g_BlockDispenserMetal, HookParamType_CBaseEntity, _, DHookPass_ByRef);
 
 	g_PackaPunchUpgrades = new StringMap();
-
 	g_Sync_NearInteractable = new Hud();
 
 	statistics = new ArrayList(ByteCountToCells(128));
@@ -1776,20 +1713,6 @@ public void OnPluginStart()
 	ParsePowerups();
 	ParseSpecials();
 
-	int entity = -1; char class[64];
-	while ((entity = FindEntityByClassname(entity, "*")) != -1)
-		if (GetEntityClassname(entity, class, sizeof(class)))
-			OnEntityCreated(entity, class);
-	
-	for (int i = 1; i <= MaxClients; i++)
-	{
-		if (IsClientConnected(i))
-			OnClientConnected(i);
-		
-		if (IsClientInGame(i))
-			OnClientPutInServer(i);
-	}
-
 	AddNormalSoundHook(OnSoundPlay);
 
 	HookEntityOutput("logic_relay", "OnTrigger", OnRelayTrigger);
@@ -1804,6 +1727,22 @@ public void OnPluginStart()
 	ConVar nb_update_frequency = FindConVar("nb_update_frequency");
 	nb_update_frequency.FloatValue = 0.01;
 	nb_update_frequency.AddChangeHook(Hook_BlockCvarValue);
+
+	Database.Connect(OnSQLConnect, "default");
+
+	int entity = -1; char class[64];
+	while ((entity = FindEntityByClassname(entity, "*")) != -1)
+		if (GetEntityClassname(entity, class, sizeof(class)))
+			OnEntityCreated(entity, class);
+	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientConnected(i))
+			OnClientConnected(i);
+		
+		if (IsClientInGame(i))
+			OnClientPutInServer(i);
+	}
 }
 
 public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -2118,7 +2057,7 @@ public void OnMapStart()
 	g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
 	g_LaserSprite = PrecacheModel("sprites/laser.vmt");
 
-	PrecacheSound("weapons/flame_thrower_fire_hitloop.wav");
+	PrecacheSound("weapons/flare_detonator_explode.wav");
 	PrecacheSound("buttons/blip1.wav");
 
 	//Lobby Sounds
@@ -2707,7 +2646,7 @@ public Action Timer_RoundTimer(Handle timer)
 			{
 				g_Match.firesale = true;
 				CPrintToChatAll("{haunted}Fire Sale {default}is now active, discount mystery box purchases!");
-				EmitSoundToAll("weapons/flame_thrower_fire_hitloop.wav");
+				EmitSoundToAll("weapons/flare_detonator_explode.wav");
 			}
 		}
 	}
@@ -2808,6 +2747,8 @@ public Action OnTeleTouch(int entity, int other)
 		for (int i = 1; i <= MaxClients; i++)
 			if (IsClientInGame(i) && !IsFakeClient(i) && GetClientTeam(i) == GetClientTeam(other))
 				g_Player[i].AddStat(STAT_TEAMMATES, 1);
+		
+		g_Player[other].playing = true;
 	}
 }
 
@@ -3101,9 +3042,6 @@ public void OnEntityCreated(int entity, const char[] classname)
 			g_PackaPunchUpgrades.SetValue(sEntity, 0);
 		}
 	}
-
-	if (g_hOnKeyValue != null)
-		DHookEntity(g_hOnKeyValue, true, entity);
 }
 
 public Action OnCurrencySpawn(int entity)
@@ -3655,6 +3593,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 			//DispatchKeyValueVector(dispenser, "angles", Angle);
 			DispatchKeyValue(dispenser, "defaultupgrade", "0");
 			DispatchKeyValue(dispenser, "spawnflags", "4");
+			DispatchKeyValue(dispenser, "solid", "0");
 			SetEntProp(dispenser, Prop_Send, "m_bBuilding", 1);
 			DispatchSpawn(dispenser);
 
@@ -3671,6 +3610,13 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 			AcceptEntityInput(dispenser, "SetParentAttachmentMaintainOffset");
 
 			SetEntProp(dispenser, Prop_Send, "m_bDisabled", 1);
+
+			SetEntPropFloat(dispenser, Prop_Send, "m_flModelScale", 1.0);
+
+			float m_vecMinsDisp[3] = {-13.0, -13.0, 0.0};
+			float m_vecMaxsDisp[3] = {13.0, 13.0, 42.9};
+			SetEntPropVector(dispenser, Prop_Send, "m_vecMins", m_vecMinsDisp);
+			SetEntPropVector(dispenser, Prop_Send, "m_vecMaxs", m_vecMaxsDisp);
 		}
 	}
 
@@ -3773,6 +3719,9 @@ public Action Timer_ZombieTicks(Handle timer)
 			continue;
 		
 		target = g_Zombies[npc.Index].target;
+
+		if (g_GlobalTarget != -1)
+			target = g_GlobalTarget;
 
 		if (target != -1 && IsClientConnected(target) && IsClientInGame(target) && IsPlayerAlive(target) && GetClientTeam(target) >= 2 && GetClientTeam(target) != npc.iTeamNum)
 		{
@@ -3886,7 +3835,7 @@ public void OnZombieThink(int entity)
 
 	int target = g_Zombies[npc.Index].target;
 
-	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) < 2 || GetClientTeam(target) == npc.iTeamNum || GetEntityMoveType(target) == MOVETYPE_NOCLIP)
+	if (target == -1 || !IsClientConnected(target) || !IsClientInGame(target) || !IsPlayerAlive(target) || GetClientTeam(target) < 2 || GetClientTeam(target) == npc.iTeamNum || GetEntityMoveType(target) == MOVETYPE_NOCLIP || !g_Player[target].playing)
 		g_Zombies[npc.Index].target = GetZombieTarget();
 	
 	target = g_Zombies[npc.Index].target;
@@ -4019,7 +3968,7 @@ int GetZombieTarget()
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS || GetEntityMoveType(i) == MOVETYPE_NOCLIP)
+		if (!IsClientConnected(i) || !IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_SURVIVORS || GetEntityMoveType(i) == MOVETYPE_NOCLIP || !g_Player[i].playing)
 			continue;
 		
 		clients[amount++] = i;
@@ -5422,7 +5371,7 @@ void SpawnWeapons()
 		GetEntityAngles(entity, angles);
 
 		int index = GetCustomWeaponIndex(sWeapon);
-
+		
 		if (index == -1)
 			continue;
 		
@@ -8440,7 +8389,8 @@ public Action Timer_InitPackaPunch(Handle timer, DataPack pack)
 
 	if (ticks >= 5.0 && phase == PUNCH_PHASE_UPGRADING)
 	{
-		TF2_CreateAnnotationToAll(boxorigin, "Upgraded weapon is ready...", 10.0, "coach/coach_attack_here.wav");
+		TF2_CreateAnnotationToAll(boxorigin, "Upgraded weapon is ready...", 10.0);
+		EmitSoundToAll("coach/coach_attack_here.wav", weapon);
 
 		phase = PUNCH_PHASE_WAITING;
 		CPrintToChat(client, "Your weapon is now upgraded, please retrieve it!");
@@ -8677,73 +8627,4 @@ int GetZombieCount(int special = -1)
 	}
 
 	return count;
-}
-
-public Action OnLevelInit(const char[] mapName, char mapEntities[2097152])
-{
-	if (g_EntityKeyValues != null)
-		g_EntityKeyValues.Close();
-	
-	g_EntityKeyValues = new EntityMap();
-}
-
-public void OnAllPluginsLoaded()
-{
-	if (g_hOnKeyValue == null && LibraryExists("dhooks"))
-		Initialize();
-}
-
-public void OnLibraryAdded(const char[] name)
-{
-	if (StrEqual(name, "dhooks") && g_hOnKeyValue == null)
-		Initialize();
-}
-
-void Initialize()
-{
-	Handle hGameData = LoadGameConfigFile("undead.gamedata");
-	
-	if (hGameData == null)
-		return;
-	
-	int offset = GameConfGetOffset(hGameData, "CBaseEntity::KeyValue");
-	
-	delete hGameData;
-	
-	if (offset == -1)
-		return;
-	
-	g_hOnKeyValue = DHookCreate(offset, HookType_Entity, ReturnType_Bool, ThisPointer_CBaseEntity, Hook_OnKeyValue);
-	
-	if (g_hOnKeyValue == null)
-		return;
-	
-	DHookAddParam(g_hOnKeyValue, HookParamType_CharPtr);
-	DHookAddParam(g_hOnKeyValue, HookParamType_CharPtr);
-}
-
-public MRESReturn Hook_OnKeyValue( int pThis, Handle hReturn, Handle hParams )
-{
-	if (DHookGetReturn(hReturn))
-		return MRES_Ignored;
-	
-	char key[128];
-	DHookGetParamString(hParams, 1, key, sizeof(key));
-	
-	char value[128];
-	DHookGetParamString(hParams, 2, value, sizeof(value));
-	
-	g_EntityKeyValues.SetEntityValue(pThis, key, value);
-	
-	return MRES_Ignored;
-}
-
-stock bool GetCustomKeyValue(int entity, const char[] key, char[] value, int maxlen)
-{
-	return g_EntityKeyValues.GetEntityValue(entity, key, value, maxlen);
-}
-
-stock bool SetCustomKeyValue(int entity, const char[] key, const char[] value, bool replace = true)
-{
-	return g_EntityKeyValues.SetEntityValue(entity, key, value, replace);
 }
