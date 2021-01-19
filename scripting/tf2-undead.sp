@@ -9,7 +9,7 @@
 #define PLUGIN_DESCRIPTION "Undead is a gamemode which pits players vs AI and player controlled zombies."
 #define PLUGIN_VERSION "1.0.5"
 
-//#define DEBUG
+#define DEBUG
 
 #define EF_NODRAW 0x020
 
@@ -2865,6 +2865,10 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 			{
 				float vecOrigin[3];
 				GetClientAbsOrigin(client, vecOrigin);
+
+				float vecGround[3];
+				if (GetGroundCoordinates(vecOrigin, vecGround))
+					CopyArrayToArray(vecGround, vecOrigin, sizeof(vecOrigin));
 
 				DispatchKeyValueVector(entity, "origin", vecOrigin);
 
