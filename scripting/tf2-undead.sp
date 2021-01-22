@@ -1743,6 +1743,17 @@ public void OnPluginStart()
 		if (IsClientInGame(i))
 			OnClientPutInServer(i);
 	}
+
+	RegConsoleCmd("sm_concept", SayConcept);
+}
+
+public Action SayConcept(int client, int args)
+{
+	char sArg[64];
+	GetCmdArgString(sArg, sizeof(sArg));
+	SpeakResponseConcept(client, sArg);
+	PrintToChat(client, "Playing: %s", sArg);
+	return Plugin_Handled;
 }
 
 public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -2622,8 +2633,13 @@ public Action Timer_RoundTimer(Handle timer)
 			TelePlayersToMap();
 
 			for (int i = 1; i <= MaxClients; i++)
+			{
 				if (IsClientInGame(i))
+				{
 					StopSound(i, SNDCHAN_AUTO, SOUND_LOBBY);
+					SpeakResponseConcept(i, "TLK_PLAYER_INCOMING");
+				}
+			}
 			
 			if ((g_Match.round - 1) % 5 == 1)
 				g_Match.SetMutation(MUTATION_ONESPECIALONLY);
@@ -2859,6 +2875,10 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	{
 		if (GetTeamAliveCount(TEAM_SURVIVORS) > 0 && GetClientTeam(client) == TEAM_SURVIVORS)
 		{
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i))
+					SpeakResponseConcept(i, "TLK_PLAYER_NEGATIVE");
+			
 			int entity = CreateEntityByName("entity_revive_marker");
 
 			if (IsValidEntity(entity))
