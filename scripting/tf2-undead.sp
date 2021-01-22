@@ -2927,7 +2927,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 				StopTimer(g_Player[client].revivetimer);
 
 				DataPack pack;
-				g_Player[client].revivetimer = CreateDataTimer(60.0, Timer_DeleteMarker, pack, TIMER_FLAG_NO_MAPCHANGE);
+				g_Player[client].revivetimer = CreateDataTimer(60.0, Timer_DisableMarker, pack, TIMER_FLAG_NO_MAPCHANGE);
 				pack.WriteCell(GetClientUserId(client));
 				pack.WriteCell(EntIndexToEntRef(entity));
 
@@ -2971,14 +2971,19 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action Timer_DeleteMarker(Handle timer, DataPack pack)
+public Action Timer_DisableMarker(Handle timer, DataPack pack)
 {
 	pack.Reset();
 	int client = GetClientOfUserId(pack.ReadCell());
 	int entity = EntRefToEntIndex(pack.ReadCell());
 
 	if (IsValidEntity(entity))
-		AcceptEntityInput(entity, "Kill");
+	{
+		//AcceptEntityInput(entity, "Kill");
+
+		SetEntityRenderMode(client, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(client, 255, 255, 255, 200);
+	}
 	
 	if (client > 0)
 		g_Player[client].revivetimer = null;
@@ -6474,7 +6479,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			int iOwner = GetEntPropEnt(entity, Prop_Send, "m_hOwner");
 
-			if (GetClientTeam(client) != GetClientTeam(iOwner))
+			if (GetClientTeam(client) != GetClientTeam(iOwner) || g_Player[iOwner].revivetimer == null)
 				continue;
 			
 			int iHealth = GetEntProp(entity, Prop_Send, "m_iHealth");
