@@ -40,6 +40,10 @@ public void OnPluginStart()
 	PrepSDKCall_SetVirtual(130);
 	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
 	g_hSDKRocketSetDamage = EndPrepSDKCall();
+
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i))
+			OnClientPutInServer(i);
 }
 
 public void OnConfigsExecuted()
@@ -121,7 +125,9 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 	delete trace;
 
 	float vecMagic[3];
-	vecMagic = vecEyeAngles;
+	vecMagic[0] = vecEyeAngles[0];
+	vecMagic[1] = vecEyeAngles[1];
+	vecMagic[2] = vecEyeAngles[2];
 
 	if (g_FlippedViewmodels[client])
 		vecMagic[1] += 45.0;
@@ -129,7 +135,7 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 		vecMagic[1] -= 45.0;
 	
 	if (g_MinViewmodels[client])
-		vecMagic[2] -= 45.0;
+		vecMagic[2] -= 50.0;
 
 	float vecProjectileOffset[3];
 	GetAngleVectors(vecMagic, vecProjectileOffset, NULL_VECTOR, NULL_VECTOR);

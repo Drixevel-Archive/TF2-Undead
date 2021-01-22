@@ -9,7 +9,7 @@
 #define PLUGIN_DESCRIPTION "Undead is a gamemode which pits players vs AI and player controlled zombies."
 #define PLUGIN_VERSION "1.0.5"
 
-#define DEBUG
+//#define DEBUG
 
 #define EF_NODRAW 0x020
 
@@ -1495,9 +1495,9 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
-	RegPluginLibrary("undeadzombies");
+	RegPluginLibrary("undead");
 
-
+	CreateNative("Undead_Damage", Native_Damage);
 
 	g_Late = late;
 	return APLRes_Success;
@@ -7118,8 +7118,6 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
-		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
-
 		if (!noragdoll)
 		{
 			char sModel[PLATFORM_MAX_PATH];
@@ -7127,6 +7125,10 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 			CreateRagdoll(entity, vecOrigin, vecAngles, vecVelocity, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
 		}
 
+		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+		//vecOrigin[2] -= 10000.0;
+		//TeleportEntity(entity, vecOrigin, NULL_VECTOR, NULL_VECTOR);
+		//npc.nSize = 0.0;
 		AcceptEntityInput(entity, "Kill");
 
 		if (IsPlayerIndex(attacker))
@@ -7148,7 +7150,7 @@ void CreateRagdoll(int entity, float origin[3], float angles[3], float velocity[
 {
 	if (!convar_Ragdolls.BoolValue || g_Match.spawn_robots)
 		return;
-	if (velocity[0]) {}
+	
 	int ragdoll = CreateEntityByName("physics_prop_ragdoll");
 
 	if (IsValidEntity(ragdoll))
@@ -8678,4 +8680,19 @@ int GetZombieCount(int special = -1)
 	}
 
 	return count;
+}
+
+public int Native_Damage(Handle plugin, int numParams)
+{
+	int entity = GetNativeCell(1);
+	int attacker = GetNativeCell(2);
+	int weapon = GetNativeCell(3);
+	float damage = GetNativeCell(4);
+	int damagetype = GetNativeCell(5);
+	int damagecustom = GetNativeCell(6);
+	bool powerups = GetNativeCell(7);
+	bool bomb_heads = GetNativeCell(8);
+
+	SDKHooks_TakeDamage(entity, 0, attacker, damage, damagetype, weapon);
+	OnZombieDeath(entity, powerups, bomb_heads, attacker, damagecustom);
 }

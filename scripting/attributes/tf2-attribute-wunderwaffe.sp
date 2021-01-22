@@ -11,6 +11,8 @@
 #include <misc-tf>
 #include <tf2-items>
 
+#include <undead>
+
 //Globals
 bool g_Setting_Wunderwaffe[MAX_ENTITY_LIMIT];
 float g_Setting_Speed[MAX_ENTITY_LIMIT];
@@ -134,7 +136,7 @@ public void OnEntityDestroyed(int entity)
 			GetEntPropVector(zombie, Prop_Data, "m_vecOrigin", vecZombiePos);
 
 			if (GetVectorDistance(vecPosition, vecZombiePos) <= g_Radius[entity])
-				SDKHooks_TakeDamage(zombie, 0, client, g_Damage[entity], DMG_BLAST, weapon, NULL_VECTOR, vecZombiePos);
+				Undead_Damage(zombie, client, weapon, g_Damage[entity], DMG_BLAST);
 		}
 
 		for (int i = 1; i <= MaxClients; i++)
@@ -145,7 +147,7 @@ public void OnEntityDestroyed(int entity)
 			GetClientAbsOrigin(i, vecZombiePos);
 
 			if (GetVectorDistance(vecPosition, vecZombiePos) <= g_Radius[entity])
-				SDKHooks_TakeDamage(i, 0, client, g_Damage[entity], DMG_BLAST, weapon, NULL_VECTOR, vecZombiePos);
+				Undead_Damage(i, client, weapon, g_Damage[entity], DMG_BLAST);
 		}
 	}
 }
