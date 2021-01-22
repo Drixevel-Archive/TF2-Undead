@@ -5740,15 +5740,25 @@ bool OnPowerupPickup(int client, int entity)
 		case 0:
 		{
 			for (int i = 1; i <= MaxClients; i++)
+			{
 				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+				{
 					g_Player[i].doublepoints = GetTime() + RoundFloat(g_Powerups[index].timer);
+					PrintHintText(i, "[Powerup: Double Points] - You gain double the points for the usual actions.");
+				}
+			}
 		}
 		//insta kill
 		case 1:
 		{
 			for (int i = 1; i <= MaxClients; i++)
+			{
 				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+				{
 					g_Player[i].instakill = GetTime() + RoundFloat(g_Powerups[index].timer);
+					PrintHintText(i, "[Powerup: Instakill] - Instantly kill all normal zombies except specials.");
+				}
+			}
 		}
 		//nuke
 		case 2:
@@ -5757,8 +5767,13 @@ bool OnPowerupPickup(int client, int entity)
 			ScreenFadeAll2();
 
 			for (int i = 1; i <= MaxClients; i++)
+			{
 				if (IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+				{
 					g_Player[i].AddPoints(400);
+					PrintHintText(i, "[Powerup: Nuke] - You have instantly nuked all zombies on the map except specials.");
+				}
+			}
 		}
 		//max ammo
 		case 3:
@@ -5777,6 +5792,8 @@ bool OnPowerupPickup(int client, int entity)
 					TF2Items_RefillMag(weapon);
 					TF2Items_RefillAmmo(i, weapon);
 				}
+
+				PrintHintText(i, "[Powerup: Max Ammo] - All of your weapons have been refilled.");
 			}
 		}
 	}
