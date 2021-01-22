@@ -15,6 +15,7 @@
 bool g_Setting_Raygun[4096];
 
 bool g_FlippedViewmodels[MAXPLAYERS + 1];
+bool g_MinViewmodels[MAXPLAYERS + 1];
 
 Handle g_hSDKWeaponGetDamage;
 Handle g_hSDKRocketSetDamage;
@@ -65,11 +66,17 @@ public void OnClientPutInServer(int client)
 {
 	//cl_flipviewmodels
 	QueryClientConVar(client, "cl_flipviewmodels", OnParseFlippedViewmodels);
+	QueryClientConVar(client, "tf_use_min_viewmodels", OnParseUseMinViewmodels);
 }
 
 public void OnParseFlippedViewmodels(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
 {
 	g_FlippedViewmodels[client] = view_as<bool>(StringToInt(cvarValue));
+}
+
+public void OnParseUseMinViewmodels(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
+{
+	g_MinViewmodels[client] = view_as<bool>(StringToInt(cvarValue));
 }
 
 public void OnEntityCreated(int entity, const char[] classname)
@@ -120,6 +127,9 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 		vecMagic[1] += 45.0;
 	else
 		vecMagic[1] -= 45.0;
+	
+	if (g_MinViewmodels[client])
+		vecMagic[2] -= 45.0;
 
 	float vecProjectileOffset[3];
 	GetAngleVectors(vecMagic, vecProjectileOffset, NULL_VECTOR, NULL_VECTOR);
