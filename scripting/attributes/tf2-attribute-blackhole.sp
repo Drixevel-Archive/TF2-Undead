@@ -13,6 +13,7 @@
 
 //Globals
 bool g_Setting_Blackhole[4096];
+float g_Setting_Duration[4096] = {10.0, ...};
 
 bool bHasBlackHole[MAXPLAYERS + 1];
 
@@ -47,9 +48,16 @@ public void TF2Items_OnRegisterAttributesPost()
 public void OnAttributeAction(int client, int weapon, const char[] attrib, const char[] action, StringMap attributesdata)
 {
 	if (StrEqual(action, "apply", false))
+	{
 		g_Setting_Blackhole[weapon] = true;
+		if (!attributesdata.GetValue("duration", g_Setting_Duration[weapon]))
+			g_Setting_Duration[weapon] = 10.0;
+	}
 	else if (StrEqual(action, "remove", false))
+	{
 		g_Setting_Blackhole[weapon] = false;
+		g_Setting_Duration[weapon] = 10.0;
+	}
 }
 
 public void OnClientDisconnect_Post(int client)
@@ -103,35 +111,31 @@ void AttemptBlackHole(int client)
 			SetEntProp(client, Prop_Data, "m_iAmmo", current, _, ammotype);
 		}
 		
-		float duration = 10.0;
-		CreateBlackHole(client, duration);
+		float duration = g_Setting_Duration[weapon];
+
+		float vecLook[3];
+		if (!GetClientLookOrigin(client, vecLook))
+			return;
+
+		TFTeam team = TF2_GetClientTeam(client);
+
+		CreateParticle("eb_tp_vortex01", vecLook, duration);
+		CreateParticle(team == TFTeam_Red ? "raygun_projectile_red_crit" : "raygun_projectile_blue_crit", vecLook, duration);
+		CreateParticle(team == TFTeam_Red ? "eyeboss_vortex_red" : "eyeboss_vortex_blue", vecLook, duration);
+
+		EmitSoundToAll("undead/weapons/moonbeam_spawn.wav", SOUND_FROM_WORLD, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, vecLook, NULL_VECTOR, true, 0.0);
+		
+		bHasBlackHole[client] = true;
+
+		DataPack pack;
+		CreateDataTimer(0.1, Timer_Pull, pack, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
+		pack.WriteFloat(0.0);
+		pack.WriteCell(GetClientUserId(client));
+		pack.WriteFloat(duration);
+		pack.WriteFloat(vecLook[0]);
+		pack.WriteFloat(vecLook[1]);
+		pack.WriteFloat(vecLook[2]);
 	}
-}
-
-void CreateBlackHole(int client, float duration)
-{
-	float vecLook[3];
-	if (!GetClientLookOrigin(client, vecLook))
-		return;
-
-	TFTeam team = TF2_GetClientTeam(client);
-
-	CreateParticle("eb_tp_vortex01", vecLook, duration);
-	CreateParticle(team == TFTeam_Red ? "raygun_projectile_red_crit" : "raygun_projectile_blue_crit", vecLook, duration);
-	CreateParticle(team == TFTeam_Red ? "eyeboss_vortex_red" : "eyeboss_vortex_blue", vecLook, duration);
-
-	EmitSoundToAll("undead/weapons/moonbeam_spawn.wav", SOUND_FROM_WORLD, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, SNDVOL_NORMAL, SNDPITCH_NORMAL, -1, vecLook, NULL_VECTOR, true, 0.0);
-	
-	bHasBlackHole[client] = true;
-
-	DataPack pack;
-	CreateDataTimer(0.1, Timer_Pull, pack, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
-	pack.WriteFloat(0.0);
-	pack.WriteCell(GetClientUserId(client));
-	pack.WriteFloat(duration);
-	pack.WriteFloat(vecLook[0]);
-	pack.WriteFloat(vecLook[1]);
-	pack.WriteFloat(vecLook[2]);
 }
 
 public Action Timer_Pull(Handle timer, DataPack pack)
