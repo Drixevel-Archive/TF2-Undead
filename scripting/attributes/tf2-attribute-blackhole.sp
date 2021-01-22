@@ -16,6 +16,8 @@ bool g_Setting_Blackhole[4096];
 
 bool bHasBlackHole[MAXPLAYERS + 1];
 
+int g_LastButtons[MAXPLAYERS + 1];
+
 public Plugin myinfo = 
 {
 	name = "[TF2-Items] Attribute :: Blackhole", 
@@ -50,7 +52,29 @@ public void OnAttributeAction(int client, int weapon, const char[] attrib, const
 		g_Setting_Blackhole[weapon] = false;
 }
 
-public void TF2_OnButtonPressPost(int client, int button)
+public void OnClientDisconnect_Post(int client)
+{
+	g_LastButtons[client] = 0;
+}
+
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon)
+{
+	int button;
+	for (int i = 0; i < MAX_BUTTONS; i++)
+	{
+		button = (1 << i);
+		
+		if ((buttons & button))
+		{
+			if (!(g_LastButtons[client] & button))
+				OnButtonPress(client, button);
+		}
+	}
+	
+	g_LastButtons[client] = buttons;
+}
+
+void OnButtonPress(int client, int button)
 {
 	if ((button & IN_ATTACK) == IN_ATTACK)
 		AttemptBlackHole(client);
