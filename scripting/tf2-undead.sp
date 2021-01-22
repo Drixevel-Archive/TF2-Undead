@@ -1515,7 +1515,7 @@ public void OnPluginStart()
 	convar_FireSale_Chance = CreateConVar("sm_undead_firesale_chance", "2", "What should the chance of a fire sale happening be?", FCVAR_NOTIFY, true, 0.0);
 	convar_FireSale_Discount = CreateConVar("sm_undead_firesale_discount", "0.02", "What should the discount for fire sales be?", FCVAR_NOTIFY, true, 0.0);
 
-	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "1", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_PlayableZombies = CreateConVar("sm_undead_playable_zombies", "0", "Should zombies be playable?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_Ragdolls = CreateConVar("sm_undead_ragdolls", "1", "Should ragdolls be enabled for ai zombies?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_BloodFx = CreateConVar("sm_undead_bloodfx", "1", "Should ai zombies display blood effects on damaged?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	convar_MaxPerks = CreateConVar("sm_undead_max_perks", "4", "What should the maximum amount of perks be?", FCVAR_NOTIFY, true, 0.0, true, 1.0);
@@ -4686,6 +4686,8 @@ public Action OnClientCommand(int client, int args)
 		int team;
 		if (StrEqual(sArguments, "auto", false))
 			team = -1;
+		else if (StrEqual(sArguments, "spectate", false))
+			team = view_as<int>(TFTeam_Spectator);
 		else if (StrEqual(sArguments, "red", false) || StrEqual(sArguments, "2", false))
 			team = TEAM_ZOMBIES;
 		else if (StrEqual(sArguments, "blue", false) || StrEqual(sArguments, "3", false))
@@ -4697,6 +4699,9 @@ public Action OnClientCommand(int client, int args)
 			ShowVGUIPanel(client, GetClientTeam(client) == 3 ? "class_blue" : "class_red");
 			return Plugin_Stop;
 		}
+
+		if (team == view_as<int>(TFTeam_Spectator))
+			g_Player[client].playing = true;
 		
 		if (team != TEAM_ZOMBIES && team != TEAM_SURVIVORS)
 			return Plugin_Continue;
@@ -5776,8 +5781,8 @@ bool OnPowerupPickup(int client, int entity)
 		}
 	}
 	
-	EmitSoundToClient(client, "undead/powerups/powerup_grab.wav");
-	EmitSoundToClient(client, g_Powerups[index].sound);
+	EmitSoundToAll("undead/powerups/powerup_grab.wav", client);
+	EmitSoundToAll(g_Powerups[index].sound, entity);
 
 	if (IsPlayerIndex(client))
 		g_Player[client].AddStat(STAT_POWERUP, 1);
