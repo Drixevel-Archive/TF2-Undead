@@ -101,7 +101,7 @@ public void OnArrowCreated(int entity)
 	
 	int weapon = GetActiveWeapon(client);
 
-	if (g_Setting_Raygun[weapon])
+	if (IsValidEntity(weapon) && g_Setting_Raygun[weapon])
 		ReplaceArrowProjectile(client, entity, weapon);
 }
 
