@@ -107,8 +107,6 @@ public void OnArrowCreated(int entity)
 
 void ReplaceArrowProjectile(int client, int entity, int weapon)
 {
-	int hLauncher = weapon;
-
 	float vecEyePosition[3];
 	GetClientEyePosition(client, vecEyePosition);
 
@@ -161,7 +159,7 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 
 	float flVelocityScalar = 1.0;
 	Address pAttrib;
-	if ((pAttrib = TF2Attrib_GetByName(hLauncher, "Projectile speed increased")) || (pAttrib = TF2Attrib_GetByName(hLauncher, "Projectile speed decreased")))
+	if ((pAttrib = TF2Attrib_GetByName(weapon, "Projectile speed increased")) || (pAttrib = TF2Attrib_GetByName(weapon, "Projectile speed decreased")))
 		flVelocityScalar = TF2Attrib_GetValue(pAttrib);
 
 	ScaleVector(vecVelocity, 1000.0 * flVelocityScalar);
@@ -172,14 +170,14 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 	{
 		AcceptEntityInput(entity, "Kill");
 
-		SetEntPropEnt(manglerShot, Prop_Send, "m_hLauncher", hLauncher);
-		SetEntPropEnt(manglerShot, Prop_Send, "m_hOriginalLauncher", hLauncher);
+		SetEntPropEnt(manglerShot, Prop_Send, "m_hLauncher", weapon);
+		SetEntPropEnt(manglerShot, Prop_Send, "m_hOriginalLauncher", weapon);
 		SetEntPropEnt(manglerShot, Prop_Send, "m_hOwnerEntity", client);
 
 		SetEntProp(manglerShot, Prop_Send, "m_fEffects", 16);
 
 		// CTFWeaponBaseGun::GetProjectileDamage
-		float damage = SDKCall(g_hSDKWeaponGetDamage, hLauncher);
+		float damage = SDKCall(g_hSDKWeaponGetDamage, weapon);
 
 		// CTFBaseRocket::SetDamage(float)
 		SDKCall(g_hSDKRocketSetDamage, manglerShot, damage);
