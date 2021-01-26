@@ -3449,10 +3449,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	int count = GetEntityCountEx("base_boss");
 	
 	if (count >= g_Difficulty[g_Match.difficulty].max_zombies)
-	{
-		PrintToServer("Failed to spawn zombie: Max Reached [%i/%i]", count, g_Difficulty[g_Match.difficulty].max_zombies);
 		return INVALID_NPC;
-	}
 
 	char sZombie[64];
 	convar_Default_Zombie.GetString(sZombie, sizeof(sZombie));
@@ -3746,28 +3743,11 @@ public Action Timer_ZombieTicks(Handle timer)
 			float endPos[3];
 			GetClientAbsOrigin(target, endPos);
 
-			//float endPos2[3];
-			//endPos2 = PredictSubjectPosition(npc, target);
-
-			//endPos[0] += endPos2[0];
-			//endPos[1] += endPos2[1];
-			//endPos[2] += endPos2[2];
-
-			//PrintToChat(target, "%.2f/%.2f/%.2f", endPos[0], endPos[1], endPos[2]);
-
 			endPos[2] += 10.0;
 
 			g_Zombies[npc.Index].pPath.ComputeToPos(npc.GetBot(), endPos, 9999999999.0);
 			g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(convar_Zombies_Face_Distance.FloatValue);
 		}
-		
-		float origin[3];
-		CBaseAnimating(entity).WorldSpaceCenter(origin);
-		
-		CNavArea leadArea = TheNavMesh.GetNearestNavArea(origin, true);
-		
-		if (leadArea == NULL_AREA)
-			PrintToServer("INVALID NAVMESH NEAR %i", entity);
 		
 		if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
 			OnEngiZombieTick(entity);
