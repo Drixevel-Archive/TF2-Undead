@@ -342,7 +342,7 @@ enum struct Match
 		
 		#if defined DEBUG
 		this.pausetimer = true;
-		this.pausezombies = true;
+		this.pausezombies = false;
 		#else
 		this.pausetimer = false;
 		this.pausezombies = false;
@@ -1743,17 +1743,6 @@ public void OnPluginStart()
 		if (IsClientInGame(i))
 			OnClientPutInServer(i);
 	}
-
-	RegConsoleCmd("sm_concept", SayConcept);
-}
-
-public Action SayConcept(int client, int args)
-{
-	char sArg[64];
-	GetCmdArgString(sArg, sizeof(sArg));
-	SpeakResponseConcept(client, sArg);
-	PrintToChat(client, "Playing: %s", sArg);
-	return Plugin_Handled;
 }
 
 public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
@@ -8693,6 +8682,13 @@ public int Native_Damage(Handle plugin, int numParams)
 	bool powerups = GetNativeCell(7);
 	bool bomb_heads = GetNativeCell(8);
 
+	CBaseNPC npc;
+	if (entity > MaxClients && (npc = TheNPCs.FindNPCByEntIndex(entity)) == INVALID_NPC)
+		return;
+
+	//Disable collisions before we send damage to the entity so random collision boxes don't appear on the map.
+	npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+	
 	SDKHooks_TakeDamage(entity, 0, attacker, damage, damagetype, weapon);
 	OnZombieDeath(entity, powerups, bomb_heads, attacker, damagecustom);
 }
