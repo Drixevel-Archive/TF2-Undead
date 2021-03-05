@@ -3994,14 +3994,22 @@ public Action OnZombieDamaged(int victim, int& attacker, int& inflictor, float& 
 	}
 	
 	bool changed;
-	if (IsPlayerIndex(attacker) && g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
+	if (IsPlayerIndex(attacker))
 	{
-		damage = 999999.0;
-		changed = true;
-	}
+		if (g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
+		{
+			damage = 999999.0;
+			changed = true;
+		}
+		else if (GetPlayerWeaponSlot(attacker, 2) == weapon)
+		{
+			damage *= 2.0;
+			changed = true;
+		}
 
-	if (IsPlayerIndex(attacker) && (damagetype & DMG_CRIT) == DMG_CRIT)
-		SendCritData(victim, attacker, damagePosition);
+		if ((damagetype & DMG_CRIT) == DMG_CRIT)
+			SendCritData(victim, attacker, damagePosition);
+	}
 	
 	return changed ? Plugin_Changed : Plugin_Continue;
 }
