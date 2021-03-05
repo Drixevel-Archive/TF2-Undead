@@ -143,6 +143,11 @@ bool g_Late;
 int g_GlowSprite;
 int g_LaserSprite;
 
+int g_iBeamSprite;
+int g_iHaloSprite;
+
+int g_HealBeam[2048][2048][2];
+
 Handle g_MovementTimer;
 
 bool g_JustConnected[MAXPLAYERS + 1];
@@ -2053,6 +2058,9 @@ public void OnMapStart()
 	g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
 	g_LaserSprite = PrecacheModel("sprites/laser.vmt");
 
+	g_iBeamSprite = PrecacheModel("sprites/laser.vmt");
+	g_iHaloSprite = PrecacheModel("sprites/halo01.vmt");
+
 	PrecacheSound("weapons/flare_detonator_explode.wav");
 	PrecacheSound("buttons/blip1.wav");
 
@@ -3301,8 +3309,8 @@ void OpenZombiesMenu(int client)
 		
 		draw = ITEMDRAW_DEFAULT;
 
-		if (g_ZombieTypes[i].unlock != -1 && g_ZombieTypes[i].unlock > g_Match.round)
-			draw = ITEMDRAW_DISABLED;
+		//if (!IsDrixevel(client) && g_ZombieTypes[i].unlock != -1 && g_ZombieTypes[i].unlock > g_Match.round)
+		//	draw = ITEMDRAW_DISABLED;
 		
 		IntToString(i, sID, sizeof(sID));
 		menu.AddItem(sID, g_ZombieTypes[i].name, draw);
@@ -3741,59 +3749,9 @@ public Action Timer_ZombieTicks(Handle timer)
 			g_Zombies[npc.Index].pPath.ComputeToPos(npc.GetBot(), endPos, 9999999999.0);
 			g_Zombies[npc.Index].pPath.SetMinLookAheadDistance(convar_Zombies_Face_Distance.FloatValue);
 		}
-		
-		if (g_Zombies[npc.Index].type == GetZombieTypeByName("Strapped Engis"))
-			OnEngiZombieTick(entity);
-	}
-
-	for (int i = 1; i <= MaxClients; i++)
-	{
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
-			continue;
-	
-		if (g_Player[i].type == GetZombieTypeByName("Strapped Engis"))
-			OnEngiZombieTick(i);
 	}
 
 	return Plugin_Continue;
-}
-
-void OnEngiZombieTick(int entity)
-{
-	float origin[3];
-	if (entity > MaxClients)
-		GetEntityOrigin(entity, origin);
-	else
-		GetClientAbsOrigin(entity, origin);
-	
-	float targetorigin[3]; CBaseNPC npc;
-	for (int i = 0; i < MAX_NPCS; i++)
-	{
-		int entity2 = g_Zombies[i].entity;
-
-		if ((npc = TheNPCs.FindNPCByEntIndex(entity2)) == INVALID_NPC)
-			continue;
-		
-		GetEntityOrigin(entity2, targetorigin);
-
-		if (GetVectorDistance(origin, targetorigin) >= 500.0 || npc.iMaxHealth < npc.iHealth)
-			continue;
-		
-		npc.iHealth += 2;
-	}
-
-	for (int i = 1; i <= MaxClients; i++)
-	{
-		if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
-			continue;
-		
-		GetClientAbsOrigin(i, targetorigin);
-		
-		if (GetVectorDistance(origin, targetorigin) >= 500.0)
-			continue;
-
-		TF2_AddPlayerHealth(i, 2, 1.0, true, true, -1);
-	}
 }
 
 public void OnZombieThink(int entity)
@@ -3849,7 +3807,9 @@ public void OnZombieThink(int entity)
 	
 	if ((ground = GetEntPropEnt(target, Prop_Send, "m_hGroundEntity")) > MaxClients && g_InteractableType[ground] == INTERACTABLE_TYPE_BUILDING)
 		isonmachine = true;
-	
+
+	int type = g_Zombies[npc.Index].type;
+
 	if (GetVectorDistance(vecNPCPos, vecTargetPos) > (convar_Zombies_Hit_Distance.FloatValue * (isonmachine ? 2.0 : 1.0)))
 		g_Zombies[npc.Index].pPath.Update(bot);
 		//g_Zombies[npc.Index].pPath.Update(bot, target, PredictSubjectPosition(npc, target));
@@ -3857,8 +3817,6 @@ public void OnZombieThink(int entity)
 	{
 		g_Zombies[npc.Index].lastattack = GetGameTime() + GetRandomFloat(convar_Zombies_Attack_Speed_Min.FloatValue, convar_Zombies_Attack_Speed_Max.FloatValue);
 		animationEntity.AddGestureSequence(animationEntity.LookupSequence("throw_fire"));
-		
-		int type = g_Zombies[npc.Index].type;
 
 		float damage = CalculateDamage(type);
 		SDKHooks_TakeDamage(target, entity, entity, damage, DMG_SLASH);
@@ -3874,6 +3832,59 @@ public void OnZombieThink(int entity)
 			PushPlayerFromPoint(target, vecNPCPos, 3000.0);
 
 		g_Player[target].RegenTimer();
+	}
+
+	if (type == GetZombieTypeByName("Strapped Engis"))
+	{
+		TE_SetupBeamRingPoint(vecNPCPos, 500.0, 501.0, g_iBeamSprite, g_iHaloSprite, 0, 10, 0.1, 5.0, 0.5, view_as<int>({255, 0, 0, 255}), 10, 0);
+		TE_SendToAll();
+
+		float targetorigin[3]; CBaseNPC npc2;
+		for (int i = 0; i < MAX_NPCS; i++)
+		{
+			int entity2 = g_Zombies[i].entity;
+
+			if ((npc2 = TheNPCs.FindNPCByEntIndex(entity2)) == INVALID_NPC)
+				continue;
+			
+			GetEntityOrigin(entity2, targetorigin);
+
+			if (GetVectorDistance(vecNPCPos, targetorigin) >= 500.0 || npc2.iHealth < 1)
+			{
+				if (g_HealBeam[entity][entity2][0] > 0)
+				{
+					AcceptEntityInput(g_HealBeam[entity][entity2][0], "Kill");
+					g_HealBeam[entity][entity2][0] = 0;
+				}
+
+				if (g_HealBeam[entity][entity2][1] > 0)
+				{
+					AcceptEntityInput(g_HealBeam[entity][entity2][1], "Kill");
+					g_HealBeam[entity][entity2][1] = 0;
+				}
+				
+				continue;
+			}
+			
+			if (npc2.iHealth < npc2.iMaxHealth)
+				npc2.iHealth += 1;
+
+			if (entity != entity2)
+				AttachHealBeam(entity, entity2, "medicgun_beam_red");
+		}
+
+		for (int i = 1; i <= MaxClients; i++)
+		{
+			if (!IsClientInGame(i) || !IsPlayerAlive(i) || GetClientTeam(i) != TEAM_ZOMBIES)
+				continue;
+			
+			GetClientAbsOrigin(i, targetorigin);
+			
+			if (GetVectorDistance(vecNPCPos, targetorigin) >= 500.0)
+				continue;
+
+			TF2_AddPlayerHealth(i, 2, 1.0, true, true, -1);
+		}
 	}
 
 	loco.FaceTowards(vecTargetPos);
@@ -3952,6 +3963,59 @@ public void OnZombieThink(int entity)
 	}
 }
 
+void AttachHealBeam(int client, int target, const char[] particle)
+{
+	if (g_HealBeam[client][target][0] > 0 || g_HealBeam[client][target][1] > 0)
+		return;
+	
+	int particle1  = CreateEntityByName("info_particle_system");
+	int particle2 = CreateEntityByName("info_particle_system");
+	
+	if (IsValidEdict(particle1))
+	{ 
+		char tName[128];
+		Format(tName, sizeof(tName), "target%i", client);
+		DispatchKeyValue(client, "targetname", tName);
+
+		char cpName[128];
+		Format(cpName, sizeof(cpName), "target%i", target);
+		DispatchKeyValue(target, "targetname", cpName);
+
+		//--------------------------------------
+		char cp2Name[128];
+		Format(cp2Name, sizeof(cp2Name), "tf2particle%i", target);
+
+		DispatchKeyValue(particle2, "targetname", cp2Name);
+		DispatchKeyValue(particle2, "parentname", cpName);
+
+		SetVariantString(cpName);
+		AcceptEntityInput(particle2, "SetParent");
+
+		SetVariantString("flag");
+		AcceptEntityInput(particle2, "SetParentAttachment");
+		//-----------------------------------------------
+
+		DispatchKeyValue(particle1, "targetname", "tf2particle");
+		DispatchKeyValue(particle1, "parentname", tName);
+		DispatchKeyValue(particle1, "effect_name", particle);
+		DispatchKeyValue(particle1, "cpoint1", cp2Name);
+
+		DispatchSpawn(particle1);
+
+		SetVariantString(tName);
+		AcceptEntityInput(particle1, "SetParent");
+
+		SetVariantString("flag");
+		AcceptEntityInput(particle1, "SetParentAttachment");
+
+		ActivateEntity(particle1);
+		AcceptEntityInput(particle1, "start");
+
+		g_HealBeam[client][target][0] = particle1;
+		g_HealBeam[client][target][1] = particle2;
+	}
+}
+
 int GetZombieTarget()
 {
 	int[] clients = new int[MaxClients];
@@ -3965,7 +4029,10 @@ int GetZombieTarget()
 		clients[amount++] = i;
 	}
 
-	return (amount == 0) ? -1 : clients[GetRandomInt(0, amount - 1)];
+	if (amount < 1)
+		return -1;
+
+	return clients[GetRandomInt(0, amount - 1)];
 }
 
 public Action OnZombiesTraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& ammotype, int hitbox, int hitgroup)
@@ -7124,6 +7191,22 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		}
 
 		StopTimer(g_SlowdownTimer[entity]);
+	}
+
+	int entity0 = -1;
+	while ((entity = FindEntityByClassname(entity, "tf_zombie")) != -1)
+	{
+		if (g_HealBeam[entity0][entity][0] > 0)
+		{
+			AcceptEntityInput(g_HealBeam[entity0][entity][0], "Kill");
+			g_HealBeam[entity0][entity][0] = 0;
+		}
+
+		if (g_HealBeam[entity0][entity][1] > 0)
+		{
+			AcceptEntityInput(g_HealBeam[entity0][entity][1], "Kill");
+			g_HealBeam[entity0][entity][1] = 0;
+		}
 	}
 }
 
