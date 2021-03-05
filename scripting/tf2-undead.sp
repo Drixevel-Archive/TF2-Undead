@@ -1550,8 +1550,6 @@ public void OnPluginStart()
 
 	convar_MysteryBoxPrice = CreateConVar("sm_undead_mystery_box_price", "1500", "The price for the Mystery Box to be used.", FCVAR_NOTIFY, true, 1.0);
 
-	RegAdminCmd("sm_waveinfo", Command_WaveInfo, ADMFLAG_ROOT);
-	
 	RegConsoleCmd("sm_difficulty", Command_Difficulty);
 	RegConsoleCmd("sm_setdifficulty", Command_SetDifficulty);
 	RegConsoleCmd("sm_votedifficulty", Command_VoteDifficulty);
@@ -8158,47 +8156,6 @@ public Action Command_VoteDifficulty(int client, int args)
 {
 
 	return Plugin_Handled;
-}
-
-public Action Command_WaveInfo(int client, int args)
-{
-	OpenWaveInfoPanel(client);
-	return Plugin_Handled;
-}
-
-void OpenWaveInfoPanel(int client)
-{
-	Panel panel = new Panel();
-
-	char title[64];
-	FormatEx(title, sizeof(title), "Wave %i - Difficulty: %s", g_Match.round, g_Difficulty[g_Match.difficulty].name);
-	panel.SetTitle(title);
-
-	char text[64];
-	for (int i = 0; i < g_TotalZombieTypes; i++)
-	{
-		if (g_ZombieTypes[i].hidden)
-			continue;
-		
-		FormatEx(text, sizeof(text), "%s: %s (%i)", g_ZombieTypes[i].name, (g_ZombieTypes[i].unlock == -1 || g_ZombieTypes[i].unlock <= g_Match.round) ? "Unlocked" : "Locked", g_ZombieTypes[i].unlock);
-		panel.DrawText(text);
-	}
-
-	panel.DrawItem("Reload Info");
-	panel.DrawItem("Exit Panel");
-
-	panel.Send(client, MenuHandler_WaveInfo, MENU_TIME_FOREVER);
-	delete panel;
-}
-
-public int MenuHandler_WaveInfo(Menu menu, MenuAction action, int param1, int param2)
-{
-	switch (action)
-	{
-		case MenuAction_Select:
-			if (param2 == 1)
-				OpenWaveInfoPanel(param1);
-	}
 }
 
 public MRESReturn DispenseMetal(int thisp, Handle hReturn, Handle hParams)
