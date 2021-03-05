@@ -1472,11 +1472,9 @@ enum struct ZombieTypes
 	char spawn_sound[PLATFORM_MAX_PATH];
 	char death_sound[PLATFORM_MAX_PATH];
 	char particle[64];
-	int unlock_wave;
+	int unlock;
 	int limit;
 	bool hidden;
-
-	bool announced;
 }
 
 ZombieTypes g_ZombieTypes[MAX_ZOMBIETYPES];
@@ -1728,7 +1726,7 @@ public void OnPluginStart()
 	nb_update_frequency.FloatValue = 0.01;
 	nb_update_frequency.AddChangeHook(Hook_BlockCvarValue);
 
-	Database.Connect(OnSQLConnect, "default");
+	//Database.Connect(OnSQLConnect, "default");
 
 	int entity = -1; char class[64];
 	while ((entity = FindEntityByClassname(entity, "*")) != -1)
@@ -2501,9 +2499,6 @@ public Action Timer_RoundTimer(Handle timer)
 	{
 		case PHASE_STARTING:
 		{
-			for (int i = 0; i < g_TotalZombieTypes; i++)
-				g_ZombieTypes[i].announced = false;
-			
 			for (int i = 1; i <= MaxClients; i++)
 			{
 				if (!IsClientInGame(i))
@@ -2636,16 +2631,8 @@ public Action Timer_RoundTimer(Handle timer)
 				g_Match.SetMutation(GetRandomInt(MUTATION_NOWEAPONS, MUTATION_TOTAL));
 			
 			for (int i = 0; i < g_TotalZombieTypes; i++)
-			{
-				if (g_ZombieTypes[i].announced)
-					continue;
-				
-				if (g_ZombieTypes[i].unlock_wave == g_Match.round)
-				{
-					g_ZombieTypes[i].announced = true;
+				if (g_ZombieTypes[i].unlock == g_Match.round)
 					CPrintToChatAll("{haunted}%s {default}are now unlocked.", g_ZombieTypes[i].name);
-				}
-			}
 
 			if (GetRandomFloat(0.0, 100.0) <= convar_FireSale_Chance.FloatValue)
 			{
@@ -3201,15 +3188,18 @@ int GetZombieType()
 	int specials[32];
 	int total;
 
-	for (int i = 1; i < g_TotalZombieTypes; i++)
+	for (int i = 0; i < g_TotalZombieTypes; i++)
 	{
-		if (g_ZombieTypes[i].unlock_wave != -1 && g_ZombieTypes[i].unlock_wave > g_Match.round)
+		if (g_ZombieTypes[i].unlock != -1 && g_ZombieTypes[i].unlock > g_Match.round)
 			continue;
 		
 		specials[total++] = i;
 	}
 
-	return (total == 0) ? GetZombieTypeByName(sZombie) : specials[GetRandomInt(0, total - 1)];
+	if (total < 1)
+		return GetZombieTypeByName(sZombie);
+
+	return specials[GetRandomInt(0, total - 1)];
 }
 
 int GetRandomZombieSpecial()
@@ -3217,7 +3207,7 @@ int GetRandomZombieSpecial()
 	int specials[32];
 	int total;
 
-	for (int i = 1; i < g_TotalZombieTypes; i++)
+	for (int i = 0; i < g_TotalZombieTypes; i++)
 		specials[total++] = i;
 	
 	char sZombie[64];
@@ -3305,14 +3295,19 @@ void OpenZombiesMenu(int client)
 	Menu menu = new Menu(MenuHandler_Zombies);
 	menu.SetTitle("Spawn a Zombie:");
 
-	char sID[16];
+	char sID[16]; int draw;
 	for (int i = 0; i < g_TotalZombieTypes; i++)
 	{
 		if (!IsDrixevel(client) && g_ZombieTypes[i].hidden)
 			continue;
 		
+		draw = ITEMDRAW_DEFAULT;
+
+		if (g_ZombieTypes[i].unlock != -1 && g_ZombieTypes[i].unlock > g_Match.round)
+			draw = ITEMDRAW_DISABLED;
+		
 		IntToString(i, sID, sizeof(sID));
-		menu.AddItem(sID, g_ZombieTypes[i].name);
+		menu.AddItem(sID, g_ZombieTypes[i].name, draw);
 	}
 
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -7494,7 +7489,7 @@ void ParseSpecials()
 			kv.GetString("spawn_sound", g_ZombieTypes[g_TotalZombieTypes].spawn_sound, PLATFORM_MAX_PATH);
 			kv.GetString("death_sound", g_ZombieTypes[g_TotalZombieTypes].death_sound, PLATFORM_MAX_PATH);
 			kv.GetString("particle", g_ZombieTypes[g_TotalZombieTypes].particle, 64);
-			g_ZombieTypes[g_TotalZombieTypes].unlock_wave = kv.GetNum("unlock_wave", -1);
+			g_ZombieTypes[g_TotalZombieTypes].unlock = kv.GetNum("unlock_wave", -1);
 			g_ZombieTypes[g_TotalZombieTypes].limit = kv.GetNum("limit", -1);
 			g_ZombieTypes[g_TotalZombieTypes].hidden = view_as<bool>(kv.GetNum("hidden", 0));
 			g_TotalZombieTypes++;
@@ -8185,7 +8180,7 @@ void OpenWaveInfoPanel(int client)
 		if (g_ZombieTypes[i].hidden)
 			continue;
 		
-		FormatEx(text, sizeof(text), "%s: %s (%i)", g_ZombieTypes[i].name, (g_ZombieTypes[i].unlock_wave == -1 || g_ZombieTypes[i].unlock_wave <= g_Match.round) ? "Unlocked" : "Locked", g_ZombieTypes[i].unlock_wave);
+		FormatEx(text, sizeof(text), "%s: %s (%i)", g_ZombieTypes[i].name, (g_ZombieTypes[i].unlock == -1 || g_ZombieTypes[i].unlock <= g_Match.round) ? "Unlocked" : "Locked", g_ZombieTypes[i].unlock);
 		panel.DrawText(text);
 	}
 
