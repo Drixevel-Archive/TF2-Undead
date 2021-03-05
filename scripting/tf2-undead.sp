@@ -4044,6 +4044,9 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 	if (!g_Match.pausezombies && GetRandomFloat(0.0, 100.0) >= 75.0)
 		PlayZombieSound(victim);
 
+	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(victim);
+	animationEntity.AddGestureSequence(animationEntity.LookupSequence("a_flinch01"));
+
 	if (IsPlayerIndex(attacker) && GetClientTeam(attacker) == npc.iTeamNum)
 		return;
 	
