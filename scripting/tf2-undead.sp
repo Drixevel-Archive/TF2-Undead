@@ -4541,13 +4541,21 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 	bool changed;
 	if (GetClientTeam(victim) == TEAM_ZOMBIES)
 	{
-		if (IsPlayerIndex(attacker) && g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
+		if (IsPlayerIndex(attacker))
 		{
-			damage = 999999.0;
-			changed = true;
-		}
+			if (g_Player[attacker].instakill != -1 && g_Player[attacker].instakill > GetTime())
+			{
+				damage = 999999.0;
+				changed = true;
+			}
+			else if (GetPlayerWeaponSlot(attacker, 2) == weapon)
+			{
+				damage *= 2.0;
+				changed = true;
+			}
 
-		SendCritData(victim, attacker, damagePosition);
+			SendCritData(victim, attacker, damagePosition);
+		}
 	}
 	
 	if (attacker > 0 && attacker <= MaxClients && GetClientTeam(attacker) == TEAM_ZOMBIES)
