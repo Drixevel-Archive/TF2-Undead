@@ -557,7 +557,6 @@ enum struct Player
 
 	int points;
 	bool playing;
-	int zombiekills;
 
 	float sounds;
 	int type;
@@ -605,7 +604,6 @@ enum struct Player
 
 		this.points = 500;
 		this.playing = false;
-		this.zombiekills = 0;
 
 		this.sounds = -1.0;
 		char sZombie[64];
@@ -658,7 +656,6 @@ enum struct Player
 
 		this.points = 500;
 		this.playing = false;
-		this.zombiekills = 0;
 
 		this.sounds = -1.0;
 		char sZombie[64];
@@ -713,7 +710,6 @@ enum struct Player
 
 		this.points = 500;
 		this.playing = false;
-		this.zombiekills = 0;
 
 		this.sounds = -1.0;
 		this.type = -1;
@@ -2434,8 +2430,6 @@ public Action Timer_RoundTimer(Handle timer)
 				Format(sSpec, sizeof(sSpec), "\n☰ (Join a team to play)");
 			else if (GetClientTeam(i) > 1 && !IsPlayerAlive(i))
 				Format(sSpec, sizeof(sSpec), "\n☰ (Respawning next round)");
-			else if (g_Match.roundphase == PHASE_ACTIVE)
-				Format(sSpec, sizeof(sSpec), " - Kills: %i", g_Player[i].zombiekills);
 			
 			char sPerk[MAX_NAME_LENGTH]; char sPerks[128]; char sDisplay[MAX_NAME_LENGTH]; char sCount[32];
 			for (int x = 0; x < g_Player[i].perks.Length; x++)
@@ -2782,7 +2776,7 @@ public void Event_OnRoundEnd(Event event, const char[] name, bool dontBroadcast)
 				TF2Attrib_RemoveAll(weapon);
 		
 		g_Player[i].Clean(false);
-		g_Player[i].zombiekills = 0;
+		SetEntProp(i, Prop_Data, "m_iFrags", 0);
 	}
 
 	int secret;
@@ -2940,7 +2934,7 @@ public void Event_OnPlayerDeath(Event event, const char[] name, bool dontBroadca
 			}
 
 			OnZombieDeath(client, true, true);
-			g_Player[attacker].zombiekills++;
+			SetEntProp(attacker, Prop_Data, "m_iFrags", GetEntProp(attacker, Prop_Data, "m_iFrags") + 1);
 		}
 
 		if (IsPlayerIndex(client))
@@ -3883,7 +3877,7 @@ public void OnZombieThink(int entity)
 			if (GetVectorDistance(vecNPCPos, targetorigin) >= 500.0)
 				continue;
 
-			TF2_AddPlayerHealth(i, 2, 1.0, true, true, -1);
+			TF2_AddPlayerHealth(i, 1, 1.0, true, true, -1);
 		}
 	}
 
@@ -4131,7 +4125,7 @@ public void OnZombieDamagedPost(int victim, int attacker, int inflictor, float d
 				points = RoundFloat(float(points) * 1.5);
 			
 			g_Player[attacker].AddPoints(points);
-			g_Player[attacker].zombiekills++;
+			SetEntProp(attacker, Prop_Data, "m_iFrags", GetEntProp(attacker, Prop_Data, "m_iFrags") + 1);
 		}
 		
 		OnZombieDeath(victim, true, true, attacker, damagecustom);
