@@ -2366,6 +2366,10 @@ public void Event_OnRoundStart(Event event, const char[] name, bool dontBroadcas
 	while ((entity = FindEntityByClassname(entity, "*")) != -1)
 		if (GetEntityClassname(entity, class, sizeof(class)))
 			OnEntityCreated(entity, class);
+	
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i))
+			SetEntProp(i, Prop_Data, "m_iDeaths", 0);
 }
 
 void InitLobby()
@@ -2508,6 +2512,8 @@ public Action Timer_RoundTimer(Handle timer)
 					g_Player[i].points = 9999999;
 				else if (TF2_GetPlayerClass(i) == TFClass_Heavy)
 					g_Player[i].points = 625;
+				
+				SetEntProp(i, Prop_Data, "m_iDeaths", 0);
 				
 				switch (GetClientTeam(i))
 				{
