@@ -147,6 +147,7 @@ int g_iBeamSprite;
 int g_iHaloSprite;
 
 int g_HealBeam[2048][2048][2];
+bool g_IsNotMapObject[2048];
 
 Handle g_MovementTimer;
 
@@ -996,9 +997,11 @@ enum struct Player
 				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
 					continue;
 				
+				TF2Attrib_SetByName(weapon, "shot penetrate all players", 1.0);
 				TF2Attrib_SetByName(weapon, "projectile penetration", 1.0);
 				TF2Attrib_SetByName(weapon, "energy weapon penetration", 1.0);
 				TF2Attrib_SetByName(weapon, "projectile penetration heavy", 1.0);
+				TF2Attrib_SetByName(weapon, "sniper fires tracer", 1.0);
 			}
 		}
 		else if (StrEqual(name, "doubletap", false))
@@ -1055,9 +1058,11 @@ enum struct Player
 				if ((weapon = GetPlayerWeaponSlot(this.client, x)) == -1)
 					continue;
 				
+				TF2Attrib_RemoveByName(weapon, "shot penetrate all players");
 				TF2Attrib_RemoveByName(weapon, "projectile penetration");
 				TF2Attrib_RemoveByName(weapon, "energy weapon penetration");
 				TF2Attrib_RemoveByName(weapon, "projectile penetration heavy");
+				TF2Attrib_RemoveByName(weapon, "sniper fires tracer");
 			}
 		}
 		else if (StrEqual(name, "doubletap", false))
@@ -1127,6 +1132,8 @@ enum struct Player
 			AcceptEntityInput(this.building, "SetParentAttachmentMaintainOffset");
 
 			SetEntProp(this.building, Prop_Send, "m_bDisabled", 1);
+
+			g_IsNotMapObject[this.building] = true;
 		}
 	}
 
@@ -2577,6 +2584,11 @@ public Action Timer_RoundTimer(Handle timer)
 			g_Match.roundphase = PHASE_WAITING;
 			EmitSoundToAll("undead/round_end.wav");
 
+			int entity = -1;
+			while ((entity = FindEntityByClassname(entity, "*")) != -1)
+				if (IsValidEntity(entity))
+					g_RebuildDelay[entity] = GetGameTime();
+
 			CreateTF2Timer(g_Match.roundtime);
 
 			TelePlayersToMap();
@@ -2619,6 +2631,10 @@ public Action Timer_RoundTimer(Handle timer)
 				if (IsValidEntity(enabled_sprite))
 					AcceptEntityInput(enabled_sprite, "Enable");
 			}
+
+			for (int i = 1; i <= MaxClients; i++)
+				if (IsClientInGame(i) && !IsPlayerAlive(i) && GetClientTeam(i) == TEAM_SURVIVORS)
+					TF2_RespawnPlayer(i);
 
 			TelePlayersToMap();
 
@@ -3095,6 +3111,9 @@ public Action OnEnablePowerups(int entity, int other)
 
 public Action OnDispenserTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
+	if (g_IsNotMapObject[victim])
+		return Plugin_Continue;
+	
 	damage = 0.0;
 	return Plugin_Changed;
 }
@@ -3106,6 +3125,9 @@ public void OnSpawnPost(int entity)
 
 public void OnEntityDestroyed(int entity)
 {
+	if (entity > 0 && entity <= 2048)
+		g_IsNotMapObject[entity] = false;
+	
 	if (entity > MaxClients)
 	{
 		g_WeaponIndex[entity] = -1;
@@ -3633,6 +3655,8 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 			float m_vecMaxsDisp[3] = {13.0, 13.0, 42.9};
 			SetEntPropVector(dispenser, Prop_Send, "m_vecMins", m_vecMinsDisp);
 			SetEntPropVector(dispenser, Prop_Send, "m_vecMaxs", m_vecMaxsDisp);
+
+			g_IsNotMapObject[dispenser] = true;
 		}
 	}
 
@@ -3848,6 +3872,14 @@ public void OnZombieThink(int entity)
 				continue;
 			
 			GetEntityOrigin(entity2, targetorigin);
+
+			//Zombie is above
+			if (vecNPCPos[2] < targetorigin[2] && (targetorigin[2] - vecNPCPos[2]) > 100.0)
+				continue;
+
+			//Zombie is below
+			if (vecNPCPos[2] > targetorigin[2] && (vecNPCPos[2] - targetorigin[2]) > 100.0)
+				continue;
 
 			if (GetVectorDistance(vecNPCPos, targetorigin) >= 500.0 || npc2.iHealth < 1)
 			{
@@ -4495,19 +4527,7 @@ public void Event_OnPlayerChangeClass(Event event, const char[] classname, bool 
 	if (client < 1 || !IsClientInGame(client) || !IsPlayerAlive(client))
 		return;
 	
-	CreateTimer(0.2, Timer_ClassChange, userid);
-}
-
-public Action Timer_ClassChange(Handle timer, any data)
-{
-	int client;
-	if ((client = GetClientOfUserId(data)) > 0)
-	{
-		StripPlayer(client);
-
-		TF2Attrib_RemoveMoveSpeedBonus(client);
-		TF2Attrib_RemoveMoveSpeedPenalty(client);
-	}
+	CreateTimer(0.2, Timer_DelaySpawn, GetClientUserId(client));
 }
 
 public Action Command_PauseTimer(int client, int args)
@@ -4607,6 +4627,9 @@ public Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& dam
 		damage = 0.0;
 		return Plugin_Changed;
 	}
+
+	if (IsPlayerAlive(victim))
+		g_Player[victim].RegenTimer();
 
 	bool changed;
 	if (GetClientTeam(victim) == TEAM_ZOMBIES)
@@ -4729,7 +4752,12 @@ public Action OnClientCommand(int client, int args)
 
 	//PrintToDrixevel("%s %s", sCommand, sArguments);
 
-	if (StrEqual(sCommand, "jointeam", false))
+	if (StrEqual(sCommand, "build", false))
+	{
+		PrintErrorMessage(client, "This command is restricted.");
+		return Plugin_Stop;
+	}
+	else if (StrEqual(sCommand, "jointeam", false))
 	{
 		int team;
 		if (StrEqual(sArguments, "auto", false))
@@ -4963,6 +4991,13 @@ public Action Listener_VoiceMenu(int client, const char[] command, int argc)
 				else
 					PrintErrorMessage(client, "You have maxed out the amount of perks for this machine.");
 				
+				return Plugin_Stop;
+			}
+
+			if (StrEqual(g_MachinesData[index].name, "packapunch", false) && GetPlayerWeaponSlot(client, 2) == active)
+			{
+				SpeakResponseConcept(client, "TLK_PLAYER_JEERS");
+				PrintErrorMessage(client, "You cannot Packapunch melee weapons.");
 				return Plugin_Stop;
 			}
 
@@ -6549,7 +6584,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			int iOwner = GetEntPropEnt(entity, Prop_Send, "m_hOwner");
 
-			if (GetClientTeam(client) != GetClientTeam(iOwner) || g_Player[iOwner].revivetimer == null)
+			if (client == iOwner || GetClientTeam(client) != GetClientTeam(iOwner) || g_Player[iOwner].revivetimer == null)
 				continue;
 			
 			int iHealth = GetEntProp(entity, Prop_Send, "m_iHealth");
@@ -8722,6 +8757,21 @@ public int Native_Damage(Handle plugin, int numParams)
 
 	//Disable collisions before we send damage to the entity so random collision boxes don't appear on the map.
 	npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+
+	if (IsPlayerIndex(attacker))
+	{
+		bool doublepoints;
+		if (IsPlayerIndex(attacker))
+			doublepoints = g_Player[attacker].doublepoints != -1 && g_Player[attacker].doublepoints > GetTime();
+		
+		int points = doublepoints ? 200 : 100;
+
+		if (GetActiveWeaponSlot(attacker) == 2)
+			points = RoundFloat(float(points) * 1.5);
+		
+		g_Player[attacker].AddPoints(points);
+		SetEntProp(attacker, Prop_Data, "m_iFrags", GetEntProp(attacker, Prop_Data, "m_iFrags") + 1);
+	}
 	
 	SDKHooks_TakeDamage(entity, 0, attacker, damage, damagetype, weapon);
 	OnZombieDeath(entity, powerups, bomb_heads, attacker, damagecustom);

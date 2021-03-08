@@ -10,6 +10,7 @@
 #include <misc-sm>
 #include <misc-tf>
 #include <tf2-items>
+#include <undead>
 
 //Globals
 bool g_Setting_Raygun[4096];
@@ -17,8 +18,8 @@ bool g_Setting_Raygun[4096];
 bool g_FlippedViewmodels[MAXPLAYERS + 1];
 bool g_MinViewmodels[MAXPLAYERS + 1];
 
-Handle g_hSDKWeaponGetDamage;
-Handle g_hSDKRocketSetDamage;
+//Handle g_hSDKWeaponGetDamage;
+//Handle g_hSDKRocketSetDamage;
 
 public Plugin myinfo = 
 {
@@ -31,15 +32,15 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetVirtual(484);
-	PrepSDKCall_SetReturnInfo(SDKType_Float, SDKPass_Plain);
-	g_hSDKWeaponGetDamage = EndPrepSDKCall();
+	//StartPrepSDKCall(SDKCall_Entity);
+	//PrepSDKCall_SetVirtual(484);
+	//PrepSDKCall_SetReturnInfo(SDKType_Float, SDKPass_Plain);
+	//g_hSDKWeaponGetDamage = EndPrepSDKCall();
 	
-	StartPrepSDKCall(SDKCall_Entity);
-	PrepSDKCall_SetVirtual(130);
-	PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
-	g_hSDKRocketSetDamage = EndPrepSDKCall();
+	//StartPrepSDKCall(SDKCall_Entity);
+	//PrepSDKCall_SetVirtual(130);
+	//PrepSDKCall_AddParameter(SDKType_Float, SDKPass_Plain);
+	//g_hSDKRocketSetDamage = EndPrepSDKCall();
 
 	for (int i = 1; i <= MaxClients; i++)
 		if (IsClientInGame(i))
@@ -177,10 +178,10 @@ void ReplaceArrowProjectile(int client, int entity, int weapon)
 		SetEntProp(manglerShot, Prop_Send, "m_fEffects", 16);
 
 		// CTFWeaponBaseGun::GetProjectileDamage
-		float damage = SDKCall(g_hSDKWeaponGetDamage, weapon);
+		//float damage = SDKCall(g_hSDKWeaponGetDamage, weapon);
 
 		// CTFBaseRocket::SetDamage(float)
-		SDKCall(g_hSDKRocketSetDamage, manglerShot, damage);
+		//SDKCall(g_hSDKRocketSetDamage, manglerShot, damage);
 
 		SetEntProp(manglerShot, Prop_Send, "m_iTeamNum", TF2_GetClientTeam(client));
 
@@ -219,8 +220,8 @@ void RocketTouch(int rocket, int other)
 		float vecZombiePos[3];
 		GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vecZombiePos);
 
-		if (GetVectorDistance(vecZombiePos, vecRocketPos) <= 80.0)
-			SDKHooks_TakeDamage(entity, 0, client, 35.0, DMG_BLAST, GetActiveWeapon(client), NULL_VECTOR, vecRocketPos);
+		if (GetVectorDistance(vecZombiePos, vecRocketPos) <= 500.0)
+			Undead_Damage(entity, client, GetActiveWeapon(client), 35.0, DMG_BLAST, -1, true, true);
 	}
 }
 
