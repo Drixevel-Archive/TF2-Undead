@@ -146,7 +146,7 @@ int g_LaserSprite;
 int g_iBeamSprite;
 int g_iHaloSprite;
 
-int g_HealBeam[2048][2048][2];
+//int g_HealBeam[2048][2048][2];
 bool g_IsNotMapObject[2048];
 
 Handle g_MovementTimer;
@@ -3544,12 +3544,14 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
-	npc.nSize = g_ZombieTypes[special].size != -1.0 ? g_ZombieTypes[special].size : 1.0;	
+	float size = g_ZombieTypes[special].size;
 
-	if (g_Match.mutation == MUTATION_MINIZOMBIES)	
-		npc.nSize = 0.8;
+	if (g_Match.mutation == MUTATION_MINIZOMBIES)
+		SetEntPropFloat(entity, Prop_Send, "m_flModelScale", 0.8);	
+	else if (size != -1.0)
+		SetEntPropFloat(entity, Prop_Send, "m_flModelScale", size);
 	
-	npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+	npc.flStepSize = 18.0 * ((size != -1.0) ? size : 1.0);
 
 	FixZombieCollisions(npc);
 
@@ -3564,10 +3566,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	npc.iMaxHealth = health;
 	npc.iHealth = health;
 	
-	npc.Run();
+	NextBotGroundLocomotion loco = npc.GetLocomotion();
+	loco.Run();
 
-	CBaseAnimatingOverlay animationEntity = CBaseAnimatingOverlay(entity);
-	animationEntity.PlayAnimation("Stand_MELEE");
+	PlayAnimation(entity, "Stand_MELEE");
 
 	g_Zombies[npc.Index].entity = entity;
 	g_Zombies[npc.Index].class = class;
@@ -3594,14 +3596,15 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	
 	if (special == GetZombieTypeByName(sZombie))
 	{
-		npc.nSize = GetRandomFloat(1.0, 1.0);
+		//size = GetRandomFloat(1.0, 1.0);
+		//SetEntPropFloat(entity, Prop_Send, "m_flModelScale", size);
 
-		if (g_Match.mutation == MUTATION_MINIZOMBIES)
-			npc.nSize = 0.8;
-		
-		npc.flStepSize = 18.0 * ((npc.nSize != -1.0) ? npc.nSize : 1.0);
+		//if (g_Match.mutation == MUTATION_MINIZOMBIES)
+		//	SetEntPropFloat(entity, Prop_Send, "m_flModelScale", 0.8);
+				
+		//npc.flStepSize = 18.0 * ((size != -1.0) ? size : 1.0);
 
-		FixZombieCollisions(npc);
+		//FixZombieCollisions(npc);
 
 		int color[3];
 		color[0] = GetRandomInt(255, 255);
@@ -3688,17 +3691,20 @@ int EquipZombieItem(int entity, const char[] attachment, const char[] model, con
 
 void FixZombieCollisions(CBaseNPC npc)
 {
-	if (npc != INVALID_NPC && npc.nSize != -1.0)
+	if (npc == INVALID_NPC)
+		return;
+	
+	int entity = npc.GetEntity();
+	
+	if (GetEntPropFloat(entity, Prop_Send, "m_flModelScale") != -1.0)
 	{
-		int entity = npc.GetEntity();
-		
 		float vecMins[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecMins", vecMins);
 
 		float vecMaxs[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecMaxs", vecMaxs);
 	
-		float size = npc.nSize;
+		float size = GetEntPropFloat(entity, Prop_Send, "m_flModelScale");
 
 		if (size < 1.0)
 			size += 1.0;
@@ -3710,7 +3716,8 @@ void FixZombieCollisions(CBaseNPC npc)
 		vecMaxs[1] *= size;
 		vecMaxs[2] *= size;
 
-		npc.SetCollisionBounds(vecMins, vecMaxs);
+		npc.SetBodyMins(vecMins);
+		npc.SetBodyMaxs(vecMaxs);
 	}
 }
 
@@ -3818,7 +3825,7 @@ public void OnZombieThink(int entity)
 	
 	if (target < 1 || g_Match.pausezombies)
 	{
-		animationEntity.PlayAnimation("Stand_MELEE");
+		PlayAnimation(entity, "Stand_MELEE");
 		return;
 	}
 	
@@ -3883,17 +3890,17 @@ public void OnZombieThink(int entity)
 
 			if (GetVectorDistance(vecNPCPos, targetorigin) >= 500.0 || npc2.iHealth < 1)
 			{
-				if (g_HealBeam[entity][entity2][0] > 0)
-				{
-					AcceptEntityInput(g_HealBeam[entity][entity2][0], "Kill");
-					g_HealBeam[entity][entity2][0] = 0;
-				}
+				// if (g_HealBeam[entity][entity2][0] > 0)
+				// {
+				// 	AcceptEntityInput(g_HealBeam[entity][entity2][0], "Kill");
+				// 	g_HealBeam[entity][entity2][0] = 0;
+				// }
 
-				if (g_HealBeam[entity][entity2][1] > 0)
-				{
-					AcceptEntityInput(g_HealBeam[entity][entity2][1], "Kill");
-					g_HealBeam[entity][entity2][1] = 0;
-				}
+				// if (g_HealBeam[entity][entity2][1] > 0)
+				// {
+				// 	AcceptEntityInput(g_HealBeam[entity][entity2][1], "Kill");
+				// 	g_HealBeam[entity][entity2][1] = 0;
+				// }
 				
 				continue;
 			}
@@ -3927,10 +3934,9 @@ public void OnZombieThink(int entity)
 	int sequence_idle = animationEntity.LookupSequence("Stand_MELEE");
 	int sequence_air_walk = animationEntity.LookupSequence("Airwalk_MELEE");
 	int sequence_run = animationEntity.LookupSequence("run_MELEE");
-	Address pModelptr = animationEntity.GetModelPtr();
-
-	int iPitch = animationEntity.LookupPoseParameter(pModelptr, "body_pitch");
-	int iYaw = animationEntity.LookupPoseParameter(pModelptr, "body_yaw");
+	
+	int iPitch = animationEntity.LookupPoseParameter("body_pitch");
+	int iYaw = animationEntity.LookupPoseParameter("body_yaw");
 
 	float vecNPCCenter[3];	
 	animationEntity.WorldSpaceCenter(vecNPCCenter);
@@ -3950,13 +3956,13 @@ public void OnZombieThink(int entity)
 	float flYaw = animationEntity.GetPoseParameter(iYaw);
 	
 	vecAng[0] = UTIL_Clamp(UTIL_AngleNormalize(vecAng[0]), -44.0, 89.0);
-	animationEntity.SetPoseParameter(pModelptr, iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
+	animationEntity.SetPoseParameter(iPitch, UTIL_ApproachAngle(vecAng[0], flPitch, 1.0));
 	
 	vecAng[1] = UTIL_Clamp(-UTIL_AngleNormalize(UTIL_AngleDiff(UTIL_AngleNormalize(vecAng[1]), UTIL_AngleNormalize(vecNPCAng[1] + 180.0))), -44.0,  44.0);
-	animationEntity.SetPoseParameter(pModelptr, iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
+	animationEntity.SetPoseParameter(iYaw, UTIL_ApproachAngle(vecAng[1], flYaw, 1.0));
 	
-	int iMoveX = animationEntity.LookupPoseParameter(pModelptr, "move_x");
-	int iMoveY = animationEntity.LookupPoseParameter(pModelptr, "move_y");
+	int iMoveX = animationEntity.LookupPoseParameter("move_x");
+	int iMoveY = animationEntity.LookupPoseParameter("move_y");
 	
 	if (iMoveX < 0 || iMoveY < 0)
 		return;
@@ -3977,7 +3983,7 @@ public void OnZombieThink(int entity)
 		}
 
 		float vecForward[3]; float vecRight[3]; float vecUp[3];
-		npc.GetVectors(vecForward, vecRight, vecUp);
+		animationEntity.GetVectors(vecForward, vecRight, vecUp);
 
 		float vecMotion[3];
 		loco.GetGroundMotionVector(vecMotion);
@@ -3985,8 +3991,8 @@ public void OnZombieThink(int entity)
 		float newMoveX = (vecForward[1] * vecMotion[1]) + (vecForward[0] * vecMotion[0]) +  (vecForward[2] * vecMotion[2]);
 		float newMoveY = (vecRight[1] * vecMotion[1]) + (vecRight[0] * vecMotion[0]) + (vecRight[2] * vecMotion[2]);
 		
-		animationEntity.SetPoseParameter(pModelptr, iMoveX, newMoveX);
-		animationEntity.SetPoseParameter(pModelptr, iMoveY, newMoveY);
+		animationEntity.SetPoseParameter(iMoveX, newMoveX);
+		animationEntity.SetPoseParameter(iMoveY, newMoveY);
 	}
 	else
 	{
@@ -3997,8 +4003,8 @@ public void OnZombieThink(int entity)
 
 void AttachHealBeam(int client, int target, const char[] particle)
 {
-	if (g_HealBeam[client][target][0] > 0 || g_HealBeam[client][target][1] > 0)
-		return;
+	// if (g_HealBeam[client][target][0] > 0 || g_HealBeam[client][target][1] > 0)
+	// 	return;
 	
 	int particle1  = CreateEntityByName("info_particle_system");
 	int particle2 = CreateEntityByName("info_particle_system");
@@ -4043,8 +4049,8 @@ void AttachHealBeam(int client, int target, const char[] particle)
 		ActivateEntity(particle1);
 		AcceptEntityInput(particle1, "start");
 
-		g_HealBeam[client][target][0] = particle1;
-		g_HealBeam[client][target][1] = particle2;
+		// g_HealBeam[client][target][0] = particle1;
+		// g_HealBeam[client][target][1] = particle2;
 	}
 }
 
@@ -4221,9 +4227,9 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	
 	float vSoundPos[3], vFootAngles[3];
 	if (iEvent == 53)
-		anim.GetAttachment(anim.FindAttachment("lfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
 	else if (iEvent == 52)
-		anim.GetAttachment(anim.FindAttachment("rfoot"), vSoundPos, vFootAngles);
+		anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
 	
 	TR_TraceRayFilter(vSoundPos, view_as<float>( { 90.0, 90.0, 90.0 } ), MASK_NPCSOLID|MASK_PLAYERSOLID, RayType_Infinite, FilterBaseActorsAndData, pThis);
 	char material[PLATFORM_MAX_PATH]; TR_GetSurfaceName(null, material, PLATFORM_MAX_PATH);
@@ -7208,7 +7214,8 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 			CreateRagdoll(entity, vecOrigin, vecAngles, vecVelocity, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
 		}
 
-		npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+		npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
+		npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
 		//vecOrigin[2] -= 10000.0;
 		//TeleportEntity(entity, vecOrigin, NULL_VECTOR, NULL_VECTOR);
 		//npc.nSize = 0.0;
@@ -7228,20 +7235,20 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 		StopTimer(g_SlowdownTimer[entity]);
 	}
 
-	int entity0 = -1;
+	//int entity0 = -1;
 	while ((entity = FindEntityByClassname(entity, "tf_zombie")) != -1)
 	{
-		if (g_HealBeam[entity0][entity][0] > 0)
-		{
-			AcceptEntityInput(g_HealBeam[entity0][entity][0], "Kill");
-			g_HealBeam[entity0][entity][0] = 0;
-		}
+		// if (g_HealBeam[entity0][entity][0] > 0)
+		// {
+		// 	AcceptEntityInput(g_HealBeam[entity0][entity][0], "Kill");
+		// 	g_HealBeam[entity0][entity][0] = 0;
+		// }
 
-		if (g_HealBeam[entity0][entity][1] > 0)
-		{
-			AcceptEntityInput(g_HealBeam[entity0][entity][1], "Kill");
-			g_HealBeam[entity0][entity][1] = 0;
-		}
+		// if (g_HealBeam[entity0][entity][1] > 0)
+		// {
+		// 	AcceptEntityInput(g_HealBeam[entity0][entity][1], "Kill");
+		// 	g_HealBeam[entity0][entity][1] = 0;
+		// }
 	}
 }
 
@@ -8756,7 +8763,8 @@ public int Native_Damage(Handle plugin, int numParams)
 		return;
 
 	//Disable collisions before we send damage to the entity so random collision boxes don't appear on the map.
-	npc.SetCollisionBounds(view_as<float>({0.0, 0.0, 0.0}), view_as<float>({0.0, 0.0, 0.0}));
+	npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
+	npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
 
 	if (IsPlayerIndex(attacker))
 	{
@@ -8775,4 +8783,17 @@ public int Native_Damage(Handle plugin, int numParams)
 	
 	SDKHooks_TakeDamage(entity, 0, attacker, damage, damagetype, weapon);
 	OnZombieDeath(entity, powerups, bomb_heads, attacker, damagecustom);
+}
+
+void PlayAnimation(int entity, const char[] name)
+{
+	CBaseAnimating anim = CBaseAnimating(entity);
+
+	int iSequence = anim.LookupSequence(name);
+
+	if (iSequence != -1)
+	{
+		anim.ResetSequence(iSequence);
+		SetEntPropFloat(entity, Prop_Data, "m_flCycle", 0.0);
+	}
 }
