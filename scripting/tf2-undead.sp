@@ -3489,6 +3489,10 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 		class = 9;
 	
 	CBaseNPC npc = new CBaseNPC();
+
+	if (npc == INVALID_NPC)
+		return INVALID_NPC;
+	
 	g_Zombies[npc.Index].Init();
 	int entity = npc.GetEntity();
 
