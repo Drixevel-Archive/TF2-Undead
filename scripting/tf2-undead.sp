@@ -3494,14 +3494,16 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 		return INVALID_NPC;
 	
 	g_Zombies[npc.Index].Init();
-	int entity = npc.GetEntity();
 
-	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
-	SetEntityModel(entity, g_Match.spawn_robots ? sRobotModels[class] : sModels[class]);
+	int entity = npc.GetEntity();
+	CBaseCombatCharacter npcEntity = CBaseCombatCharacter(entity);
+
+	npcEntity.Spawn();
+	npcEntity.Teleport(origin);
+	npcEntity.SetModel(g_Match.spawn_robots ? sRobotModels[class] : sModels[class]);
 
 	g_Zombies[npc.Index].type = special;
 
-	DispatchSpawn(entity);
 	SDKHook(entity, SDKHook_Think, OnZombieThink);
 	SDKHook(entity, SDKHook_TraceAttack, OnZombiesTraceAttack);
 	SDKHook(entity, SDKHook_OnTakeDamageAlive, OnZombieDamaged);
