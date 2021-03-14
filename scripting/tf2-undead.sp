@@ -3777,7 +3777,7 @@ public Action Timer_ZombieTicks(Handle timer)
 		if (g_GlobalTarget != -1)
 			target = g_GlobalTarget;
 
-		if (target != -1 && IsClientConnected(target) && IsClientInGame(target) && IsPlayerAlive(target) && GetClientTeam(target) >= 2 && GetClientTeam(target) != npc.iTeamNum)
+		if (target > 0 && target <= MaxClients && IsClientConnected(target) && IsClientInGame(target) && IsPlayerAlive(target) && GetClientTeam(target) >= 2 && GetClientTeam(target) != npc.iTeamNum)
 		{
 			float endPos[3];
 			GetClientAbsOrigin(target, endPos);
