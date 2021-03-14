@@ -7217,6 +7217,12 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 	if (entity > MaxClients)
 	{
+		if (g_Zombies[npc.Index].item != -1)
+		{
+			AcceptEntityInput(g_Zombies[npc.Index].item, "Kill");
+			g_Zombies[npc.Index].item = -1;
+		}
+
 		if (!noragdoll)
 		{
 			char sModel[PLATFORM_MAX_PATH];
