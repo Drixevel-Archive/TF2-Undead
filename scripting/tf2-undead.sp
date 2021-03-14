@@ -131,6 +131,11 @@ ConVar convar_Zombies_Attack_Speed_Max;
 ConVar convar_Zombies_Attack_Damage_Min;
 ConVar convar_Zombies_Attack_Damage_Max;
 ConVar convar_Zombies_BoundingBoxes;
+ConVar convar_Zombies_StepSize;
+ConVar convar_Zombies_Gravity;
+ConVar convar_Zombies_Acceleration;
+ConVar convar_Zombies_JumpHeight;
+ConVar convar_Zombies_DeathDropHeight;
 
 ConVar convar_MysteryBoxPrice;
 
@@ -1550,6 +1555,11 @@ public void OnPluginStart()
 	convar_Zombies_Attack_Damage_Min = CreateConVar("sm_undead_zombies_attack_damage_min", "15.0", "What is the minimum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_Attack_Damage_Max = CreateConVar("sm_undead_zombies_attack_damage_max", "25.0", "What is the maximum amount of damage zombies attack with?", FCVAR_NOTIFY, true, 1.0);
 	convar_Zombies_BoundingBoxes = CreateConVar("sm_undead_zombies_bounding_boxes", "0.0", "Enable or disable bounding boxes for zombies? (DEBUG)", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	convar_Zombies_StepSize = CreateConVar("sm_undead_zombie_stepsize", "18.0", "What should the step size for zombies be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Zombies_Gravity = CreateConVar("sm_undead_zombie_gravity", "800.0", "What should the gravity for zombies be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Zombies_Acceleration = CreateConVar("sm_undead_zombie_acceleration", "1000.0", "What should the acceleration for zombies be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Zombies_JumpHeight = CreateConVar("sm_undead_zombie_jumpheight", "150.0", "What should the jump height for zombies be?", FCVAR_NOTIFY, true, 0.0);
+	convar_Zombies_DeathDropHeight = CreateConVar("sm_undead_zombie_deathdropheight", "2000.0", "What should the death drop height for zombies be?", FCVAR_NOTIFY, true, 0.0);
 
 	convar_MysteryBoxPrice = CreateConVar("sm_undead_mystery_box_price", "1500", "The price for the Mystery Box to be used.", FCVAR_NOTIFY, true, 1.0);
 
@@ -3550,12 +3560,12 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	int health = CalculateHealth(entity);
 	
 	npc.nSkin = (class == 8) ? 22 : 4;
-	npc.flStepSize = 18.0 * ((size != -1.0) ? size : 1.0);
+	npc.flStepSize = convar_Zombies_StepSize.FloatValue * ((size != -1.0) ? size : 1.0);
 	npc.iTeamNum = team;
-	npc.flGravity = 800.0;
-	npc.flAcceleration = 1000.0; //4000.0
-	npc.flJumpHeight = 150.0;
-	npc.flDeathDropHeight = 2000.0;
+	npc.flGravity = convar_Zombies_Gravity.FloatValue;
+	npc.flAcceleration = convar_Zombies_Acceleration.FloatValue;
+	npc.flJumpHeight = convar_Zombies_JumpHeight.FloatValue;
+	npc.flDeathDropHeight = convar_Zombies_DeathDropHeight.FloatValue;
 	npc.flWalkSpeed = speed;
 	npc.flRunSpeed = speed;
 	npc.iMaxHealth = health;
@@ -3570,7 +3580,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
-	
+
 	NextBotGroundLocomotion loco = npc.GetLocomotion();
 	loco.Run();
 
