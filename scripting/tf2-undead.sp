@@ -1274,6 +1274,7 @@ enum struct Zombies
 	int plank_target;
 	float plank_damage_tick;
 	char death_sound[PLATFORM_MAX_PATH];
+	int item;
 
 	void Reset()
 	{
@@ -1291,6 +1292,7 @@ enum struct Zombies
 		this.plank_target = -1;
 		this.plank_damage_tick = -1.0;
 		this.death_sound[0] = '\0';
+		this.item = -1;
 	}
 
 	void AddDeathSound(const char[] sound)
@@ -3572,6 +3574,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	g_Zombies[npc.Index].planktarget = -1;
 	g_Zombies[npc.Index].sounds = GetZombieSoundDuration(entity);
 	g_Zombies[npc.Index].insidemap = false;
+	g_Zombies[npc.Index].item = item;
 
 	SetEntityCollisionGroup(entity, COLLISION_GROUP_PUSHAWAY);
 	
@@ -3674,11 +3677,13 @@ int EquipZombieItem(int entity, const char[] attachment, const char[] model, con
 		SetVariantString(anim);
 		AcceptEntityInput(iItem, "SetAnimation");
 	}
+
 	SetVariantString("!activator");
 	AcceptEntityInput(iItem, "SetParent", entity);
 	
 	SetVariantString(attachment);
 	AcceptEntityInput(iItem, "SetParentAttachmentMaintainOffset"); 
+
 	return iItem;
 }
 
@@ -7221,9 +7226,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 		npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
 		npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
-		//vecOrigin[2] -= 10000.0;
-		//TeleportEntity(entity, vecOrigin, NULL_VECTOR, NULL_VECTOR);
-		//npc.nSize = 0.0;
+		
 		AcceptEntityInput(entity, "Kill");
 
 		if (IsPlayerIndex(attacker))
