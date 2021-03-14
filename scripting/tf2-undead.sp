@@ -1276,7 +1276,7 @@ enum struct Zombies
 	char death_sound[PLATFORM_MAX_PATH];
 	int item;
 
-	void Reset()
+	void Init()
 	{
 		this.npc = INVALID_NPC;
 		this.class = -1;
@@ -3489,6 +3489,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 		class = 9;
 	
 	CBaseNPC npc = new CBaseNPC();
+	g_Zombies[npc.Index].Init();
 	int entity = npc.GetEntity();
 
 	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
@@ -7232,7 +7233,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 
 		npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
 		npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
-		
+
 		AcceptEntityInput(entity, "Kill");
 
 		if (IsPlayerIndex(attacker))
