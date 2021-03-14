@@ -3539,13 +3539,6 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	if (team == -1)
 		team = TEAM_ZOMBIES;
 	
-	npc.nSkin = (class == 8) ? 22 : 4;
-	npc.iTeamNum = team;
-	npc.flGravity = 800.0;
-	npc.flAcceleration = 1000.0; //4000.0
-	npc.flJumpHeight = 150.0;
-	npc.flDeathDropHeight = 2000.0;
-
 	float size = g_ZombieTypes[special].size;
 
 	if (g_Match.mutation == MUTATION_MINIZOMBIES)
@@ -3553,20 +3546,30 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	else if (size != -1.0)
 		SetEntPropFloat(entity, Prop_Send, "m_flModelScale", size);
 	
+	float speed = CalculateSpeed(special);
+	int health = CalculateHealth(entity);
+	
+	npc.nSkin = (class == 8) ? 22 : 4;
 	npc.flStepSize = 18.0 * ((size != -1.0) ? size : 1.0);
+	npc.iTeamNum = team;
+	npc.flGravity = 800.0;
+	npc.flAcceleration = 1000.0; //4000.0
+	npc.flJumpHeight = 150.0;
+	npc.flDeathDropHeight = 2000.0;
+	npc.flWalkSpeed = speed;
+	npc.flRunSpeed = speed;
+	npc.iMaxHealth = health;
+	npc.iHealth = health;
+
+	float vecMins[3] = {-1.0, -1.0, 0.0};
+	float vecMaxs[3] = {1.0, 1.0, 90.0};
+	npc.SetBodyMins(vecMins);
+	npc.SetBodyMaxs(vecMaxs);
 
 	FixZombieCollisions(npc);
 
 	CBaseAnimating anim = CBaseAnimating(entity);
 	anim.Hook_HandleAnimEvent(OnZombieAnimation);
-
-	float speed = CalculateSpeed(special);
-	npc.flWalkSpeed = speed;
-	npc.flRunSpeed = speed;
-
-	int health = CalculateHealth(entity);
-	npc.iMaxHealth = health;
-	npc.iHealth = health;
 	
 	NextBotGroundLocomotion loco = npc.GetLocomotion();
 	loco.Run();
