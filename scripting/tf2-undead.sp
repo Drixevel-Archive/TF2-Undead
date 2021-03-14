@@ -3535,7 +3535,7 @@ CBaseNPC SpawnZombie(float origin[3], int special = -1, bool limitcheck = true)
 	npc.nSkin = (class == 8) ? 22 : 4;
 	npc.iTeamNum = team;
 	npc.flGravity = 800.0;
-	npc.flAcceleration = 4000.0;
+	npc.flAcceleration = 1000.0; //4000.0
 	npc.flJumpHeight = 150.0;
 	npc.flDeathDropHeight = 2000.0;
 
