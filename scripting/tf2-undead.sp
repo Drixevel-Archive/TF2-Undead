@@ -4244,17 +4244,17 @@ public MRESReturn OnZombieAnimation(int pThis, Handle hParams)
 	if (npc == INVALID_NPC)
 		return;
 	
-	CBaseAnimating anim = CBaseAnimating(pThis);
+	//CBaseAnimating anim = CBaseAnimating(pThis);
 
 	int iEvent = DHookGetParamObjectPtrVar(hParams, 1, 0, ObjectValueType_Int);
 	
 	char strSound[64];
 	
-	float vSoundPos[3], vFootAngles[3];
-	if (iEvent == 53)
-		anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
-	else if (iEvent == 52)
-		anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
+	float vSoundPos[3];//, vFootAngles[3];
+	//if (iEvent == 53)
+	//	anim.GetAttachment(anim.LookupAttachment("lfoot"), vSoundPos, vFootAngles);
+	//else if (iEvent == 52)
+	//	anim.GetAttachment(anim.LookupAttachment("rfoot"), vSoundPos, vFootAngles);
 	
 	TR_TraceRayFilter(vSoundPos, view_as<float>( { 90.0, 90.0, 90.0 } ), MASK_NPCSOLID|MASK_PLAYERSOLID, RayType_Infinite, FilterBaseActorsAndData, pThis);
 	char material[PLATFORM_MAX_PATH]; TR_GetSurfaceName(null, material, PLATFORM_MAX_PATH);
@@ -7239,7 +7239,7 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 	{
 		if (g_Zombies[npc.Index].item != -1)
 		{
-			AcceptEntityInput(g_Zombies[npc.Index].item, "Kill");
+			//AcceptEntityInput(g_Zombies[npc.Index].item, "Kill");
 			g_Zombies[npc.Index].item = -1;
 		}
 
@@ -7250,10 +7250,10 @@ void OnZombieDeath(int entity, bool powerups = false, bool bomb_heads = false, i
 			CreateRagdoll(entity, vecOrigin, vecAngles, vecVelocity, sModel, npc.nSkin, npc.iTeamNum, sZombieAttachments[g_Zombies[npc].class], 5.0, damagecustom == 46);
 		}
 
-		npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
-		npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
+		//npc.SetBodyMins(view_as<float>({0.0, 0.0, 0.0}));
+		//npc.SetBodyMaxs(view_as<float>({0.0, 0.0, 0.0}));
 
-		AcceptEntityInput(entity, "Kill");
+		//AcceptEntityInput(entity, "Kill");
 
 		if (IsPlayerIndex(attacker))
 		{

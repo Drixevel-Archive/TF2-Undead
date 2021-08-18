@@ -17,7 +17,6 @@ float g_flLastAttackTime[MAX_NPCS];
 
 public void OnPluginStart()
 {
-	if (TheNavMesh) { }
 	RegAdminCmd("spawn_test_npc", Command_SpawnNPC, ADMFLAG_CHEATS);
 	RegAdminCmd("teleport_test_npc", Command_TeleportNPC, ADMFLAG_CHEATS);
 	RegAdminCmd("set_goal_npc", Command_SetGoalNPC, ADMFLAG_CHEATS);
