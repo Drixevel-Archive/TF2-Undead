@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+	"$basetexture"	"noobis/mystery_box/hay"
+	//$bumpmap "noobis/mystery_box/hay"
+
+	$phong 1
+	"$phongexponent" 2
+	"$phongboost" 2
+	"$phongfresnelranges"	"[0 0.5 1]"
+}

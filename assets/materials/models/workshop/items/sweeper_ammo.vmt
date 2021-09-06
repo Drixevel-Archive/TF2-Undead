@@ -1,0 +1,25 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models/workshop/items/sweeper_ammo.vtf"
+
+	"$lightwarptexture" "models\lightwarps\weapon_lightwarp"	
+
+    	"$phong"                "1"
+    	"$phongexponent"        "17"
+    	"$phongboost"           "9"
+  	"$phongfresnelranges"   "[.25 .5 1]"
+	"$halflambert" "1"
+
+	"$commadd_phongexponent" "20"
+	"$commadd_phongboost" 	"10"
+	"$commweapon"		"0"
+
+	// Rim lighting parameters
+	"$rimlight" "1"			
+	"$rimlightexponent" "4"	
+	"$rimlightboost" "1"
+
+	"$basemapalphaphongmask" "1"
+
+	"$glowcolor" "1"
+}

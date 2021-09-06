@@ -1,0 +1,23 @@
+"UnlitGeneric"
+{
+	"$basetexture" "noobis/mystery_box/y1"
+
+	$phong 1
+	"$phongexponent" 2
+	"$phongboost" 2
+	"$phongfresnelranges"	"[0 0.5 1]"
+
+"Proxies"
+   {
+   
+      "TextureScroll"
+      {
+         "texturescrollvar" "$basetexturetransform"       
+         "texturescrollrate" 0.3
+         "texturescrollangle" 180  
+      }
+   
+
+   }
+
+}
